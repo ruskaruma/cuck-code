@@ -1,0 +1,45 @@
+{
+  "name": "cuck-code",
+  "version": "0.0.0",
+  "description": "Your coding agent does the work. You watch from the chair. A cinematic ANSI intro for Claude Code, Codex, Cursor, Gemini and every other terminal agent.",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "codex",
+    "cursor",
+    "gemini",
+    "ai",
+    "agent",
+    "cli",
+    "terminal",
+    "ansi",
+    "animation",
+    "meme"
+  ],
+  "homepage": "https://github.com/ruskaruma/cuck-code#readme",
+  "bugs": "https://github.com/ruskaruma/cuck-code/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ruskaruma/cuck-code.git"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Ishaan Sinha",
+    "url": "https://github.com/ruskaruma"
+  },
+  "bin": {
+    "cuck": "bin/cuck"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "install.js"
+  ],
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "optionalDependencies": {}
+}
