@@ -3,7 +3,6 @@ package shellhook
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -64,6 +63,10 @@ func TestInstallRemoveBlock(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".zshrc")
 	orig := "export PATH=$HOME/bin:$PATH\nalias ll='ls -l'\n"
 	os.WriteFile(path, []byte(orig), 0o600)
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	tg := Target{Shell: "zsh", Path: path}
 
 	for i := 0; i < 2; i++ { // installing twice must not duplicate the block
@@ -75,8 +78,10 @@ func TestInstallRemoveBlock(t *testing.T) {
 	if strings.Count(string(b), beginMarker) != 1 || !strings.HasPrefix(string(b), orig) || !tg.Installed() {
 		t.Fatalf("bad install:\n%s", b)
 	}
-	if st, _ := os.Stat(path); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
-		t.Errorf("mode changed to %v", st.Mode().Perm())
+	// Editing a startup file must not change its permissions (0600 on Unix;
+	// Windows reports its own mode, which must equally be preserved).
+	if st, _ := os.Stat(path); st.Mode().Perm() != before.Mode().Perm() {
+		t.Errorf("mode changed from %v to %v", before.Mode().Perm(), st.Mode().Perm())
 	}
 	if err := tg.Remove(); err != nil {
 		t.Fatal(err)
