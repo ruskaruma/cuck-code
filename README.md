@@ -241,14 +241,6 @@ The config file is optional and can contain any of the fields below.
 
 When no agent is given, cuck picks one in this order: `--agent`, then a positional agent, then `$CUCK_AGENT`, then `agent` in the config file, then `claude`.
 
-## More
-
-Troubleshooting, how it works under the hood, and how releases are cut are in [docs/README.md](docs/README.md).
-
-## Who's behind this
-
-Run and managed by [@ruskaruma08](https://x.com/ruskaruma08) and [@ishaans08](https://x.com/ishaans08) on X.
-
 ## License
 
 [MIT](LICENSE) © 2026 Ishaan Sinha ([@ruskaruma](https://github.com/ruskaruma))
