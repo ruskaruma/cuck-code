@@ -1,6 +1,10 @@
 package animation
 
-import "math"
+import (
+	"math"
+
+	"github.com/ruskaruma/cuck-code/internal/sound"
+)
 
 // Story beats in seconds at natural pace. Play rescales them to fit the
 // requested duration; the transition after the wink always runs in real time.
@@ -27,6 +31,20 @@ const (
 	storyLen   = 7.40
 	skipTarget = tLookBack // where a key press jumps to
 )
+
+// soundCues are the sound effects, in story order.
+var soundCues = []struct {
+	t   float64
+	cue string
+}{
+	{tKnock, sound.Knock},
+	{tDoorOpen, sound.Door},
+	{tClimb + 0.25, sound.Bed},
+	{tClimb + 0.7, sound.Bed},
+	{tKiss, sound.Smooch},
+	{tWink, sound.Ding},
+	{tWink + 0.05, sound.Voice}, // "who got the good d? who got the good d?"
+}
 
 type waypoint struct{ t, x, z float64 }
 

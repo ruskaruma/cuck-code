@@ -6,7 +6,7 @@ PREFIX  ?= $(HOME)/.local
 
 TARGETS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 
-.PHONY: build test dist npm install demo clean $(TARGETS)
+.PHONY: build test dist npm install demo sounds clean $(TARGETS)
 
 build:
 	$(GOBUILD) -o $(BINARY) ./cmd/cuck
@@ -35,6 +35,12 @@ demo:
 	go run ./cmd/preview -gif -fps 12 -w 84 -h 26 -o docs/assets/demo.gif
 	@for s in $(SHOTS); do go run ./cmd/preview -t $${s#*:} -w 100 -h 32 -o docs/assets/screenshots/$${s%%:*}.png; done
 	go run ./cmd/preview -t 7.4 -fx 0.35 -w 100 -h 32 -o docs/assets/screenshots/7-flash.png
+
+# Regenerates the embedded sound clips (effects are synthesised; the voice needs espeak-ng and ffmpeg).
+sounds:
+	go run ./internal/sound/gen
+	espeak-ng -v en-us+m3 -s 160 -p 35 -g 3 -w /tmp/cuck-voice.wav "who got the good dee?  who got the good dee?"
+	ffmpeg -loglevel error -y -i /tmp/cuck-voice.wav -af "silenceremove=start_periods=1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_threshold=-45dB,areverse,asetrate=22050*0.9,aresample=22050,atempo=1.1,volume=1.8" -ac 1 -ar 22050 -c:a pcm_s16le internal/sound/clips/voice.wav
 
 clean:
 	rm -rf dist packaging/npm/out $(BINARY)

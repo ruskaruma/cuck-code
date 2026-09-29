@@ -159,3 +159,20 @@ func TestSheMoves(t *testing.T) {
 		t.Errorf("her legs barely move (total %.2f)", moved)
 	}
 }
+
+func TestSoundCues(t *testing.T) {
+	prev := -1.0
+	voice := false
+	for _, c := range soundCues {
+		if c.t < prev || c.t > storyLen {
+			t.Errorf("cue %q at %v is out of order or past the end", c.cue, c.t)
+		}
+		prev = c.t
+		if c.cue == "voice" && c.t >= tWink {
+			voice = true
+		}
+	}
+	if !voice {
+		t.Error("the voice line should come with the wink")
+	}
+}

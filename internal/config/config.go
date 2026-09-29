@@ -11,6 +11,8 @@
 //	  "duration_ms": 7500,
 //	  "fps": 30,
 //	  "color": "auto",
+//	  "sound": true,
+//	  "sound_file": "~/Music/good-d.mp3",
 //	  "hook_agents": ["my-agent"],
 //	  "hook_exclude": ["cursor"]
 //	}
@@ -39,6 +41,10 @@ type Config struct {
 	FPS int `json:"fps"`
 	// Color is the colour mode: auto, truecolor, 256, 16 or none.
 	Color string `json:"color"`
+	// Sound turns on the intro's sound effects and voice line (off by default).
+	Sound *bool `json:"sound"`
+	// SoundFile replaces the built-in voice line with your own clip (wav, mp3, ...).
+	SoundFile string `json:"sound_file"`
 	// HookAgents are extra commands for the shell hook to wrap.
 	HookAgents []string `json:"hook_agents"`
 	// HookExclude are built-in agents the shell hook should leave alone.
@@ -75,6 +81,32 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("%s: %w", path, err)
 	}
 	return c, nil
+}
+
+// Set writes one top-level key into the config file, keeping everything else
+// in it (including fields this version doesn't know about).
+func Set(key string, value any) error {
+	path := Path()
+	if path == "" {
+		return errors.New("no config directory")
+	}
+	m := map[string]any{}
+	if b, err := os.ReadFile(path); err == nil {
+		if err := json.Unmarshal(b, &m); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	m[key] = value
+	b, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(b, '\n'), 0o644)
 }
 
 // Resolve expands an agent alias to its command line. Names that are not

@@ -165,6 +165,9 @@ func cmdSetup(args []string, cfg config.Config) int {
 		fmt.Fprintln(out, "\n  Couldn't write the system files. Try `sudo cuck setup --system`, or `cuck setup --user`.")
 		return 1
 	}
+	if !sys && !*yes {
+		askSound(in, out)
+	}
 	fmt.Fprintln(out, "\n  Welcome to the chair. Open a new terminal and type `claude` (or any agent).")
 	fmt.Fprintln(out, "  Skip it once with `command claude`. Undo everything with `cuck uninstall`.")
 	return 0
@@ -254,6 +257,22 @@ func cmdUninstall(args []string, _ config.Config) int {
 		fmt.Println("\n  You're out of the chair. Open a new terminal for it to take effect.")
 	}
 	return 0
+}
+
+// askSound offers the sound effects, which are off by default so nobody gets
+// ambushed in an open-plan office.
+func askSound(in io.Reader, out io.Writer) {
+	fmt.Fprint(out, "\n  "+bold("Want sound too?")+" Creaks, a kiss, and your agent asking who got the good d. [y/N]\n  > ")
+	answer, _ := bufio.NewReader(in).ReadString('\n')
+	if a := strings.ToLower(strings.TrimSpace(answer)); a != "y" && a != "yes" {
+		fmt.Fprintln(out, "  Silent it is. Turn it on any time with `cuck --sound` or \"sound\": true in the config.")
+		return
+	}
+	if err := config.Set("sound", true); err != nil {
+		fmt.Fprintf(out, "  Couldn't save that: %v\n", err)
+		return
+	}
+	fmt.Fprintln(out, "  Sound on. Turn it off with \"sound\": false in "+tildify(config.Path())+".")
 }
 
 // bold emphasises s where the terminal is known to understand escapes.

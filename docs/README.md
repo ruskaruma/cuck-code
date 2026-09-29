@@ -6,6 +6,7 @@ Everything that doesn't fit in the [README](../README.md).
 - [Getting cucked](#getting-cucked)
 - [Usage](#usage)
 - [Configuration](#configuration)
+- [Sound](#sound)
 - [Troubleshooting](#troubleshooting)
 - [How it works](#how-it-works)
 - [Releasing](#releasing)
@@ -158,6 +159,7 @@ cuck --dry-run yolo               # print what would run
 | `--duration` | `7500` | intro length in ms (3000–30000); the story speeds up or slows down to fit |
 | `--fps` | `30` | frame rate (5–60) |
 | `--color` | `auto` | `truecolor`, `256`, `16` or `none` |
+| `--sound` / `--no-sound` | off | sound effects and the voice line |
 | `--dry-run` | | print the resolved command and exit |
 | `--version` | | |
 
@@ -178,6 +180,7 @@ cuck checks that the agent exists **before** the intro, so a typo won't cost you
 |---|---|
 | `CUCK_AGENT` | default agent when none is given |
 | `CUCK_NO_ANIMATION=1` | never play the intro (the hook stays installed but launches instantly) |
+| `CUCK_SOUND=1` / `CUCK_SOUND=0` | force sound on or off |
 | `CUCK_SKIP_SETUP=1` | don't ask the question during `npm install` or the install scripts |
 | `CUCK_CONFIG` | config file path |
 | `NO_COLOR` | render the intro in plain ASCII |
@@ -203,6 +206,8 @@ The config file is optional and can contain any of the fields below.
   "duration_ms": 7500,
   "fps": 30,
   "color": "auto",
+  "sound": true,
+  "sound_file": "~/Music/good-d.mp3",
   "hook_agents": ["my-internal-agent"],
   "hook_exclude": ["cursor", "goose"]
 }
@@ -214,10 +219,29 @@ The config file is optional and can contain any of the fields below.
 | `agents` | aliases: `cuck yolo` runs the command line on the right |
 | `animation` | `false` never plays the intro |
 | `duration_ms`, `fps`, `color` | same as the flags |
+| `sound` | `true` plays the sound effects and voice line (off by default) |
+| `sound_file` | your own clip (wav, mp3, ...) to play instead of the built-in voice line |
 | `hook_agents` | extra commands for the shell hook to wrap |
 | `hook_exclude` | built-in agents the hook should leave alone |
 
 When no agent is given, cuck picks one in this order: `--agent`, then a positional agent, then `$CUCK_AGENT`, then `agent` in the config file, then `claude`.
+
+## Sound
+
+Sound is off by default. Turn it on with `--sound`, `"sound": true` in the config, `CUCK_SOUND=1`, or by saying yes to the second question in `cuck setup`.
+
+| When | Sound |
+|---|---|
+| the door handle rattles | knock knock knock |
+| the door swings open | door creak |
+| he climbs onto the bed | bed creaks |
+| the kiss | smooch |
+| the wink | ding, then the voice: *"who got the good d? who got the good d?"* |
+| the flash | bass boom |
+
+The clips are built into the binary; there are no audio dependencies. cuck plays them with whatever the OS already has: `afplay` on macOS, `pw-play`, `paplay`, `aplay` or `ffplay` on Linux, and PowerShell on Windows. If none is available, or there's no audio device (SSH, CI), it stays silent. The voice line keeps playing while your agent starts up.
+
+To use your own clip for the voice line, point `"sound_file"` at it. WAV works everywhere; MP3 and other formats need `afplay` (macOS), `ffplay` or `mpv` (Linux), or PowerShell (Windows).
 
 ## Troubleshooting
 
@@ -251,6 +275,7 @@ internal/shellhook/  agent list, shell wrappers, startup-file editing
 internal/tty/        terminal modes, size, key polling, Windows VT mode
 internal/runner/     command parsing and exec
 internal/config/     config file
+internal/sound/      sound cues, embedded clips, per-OS players (gen/ synthesises the effects)
 docs/assets/         logo, demo GIF, screenshots
 packaging/npm/       npm package (launcher + all six binaries)
 packaging/install.*  curl / PowerShell installers

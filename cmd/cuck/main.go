@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/ruskaruma/cuck-code/internal/config"
 	"github.com/ruskaruma/cuck-code/internal/runner"
 	"github.com/ruskaruma/cuck-code/internal/shellhook"
+	"github.com/ruskaruma/cuck-code/internal/sound"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".
@@ -47,6 +49,7 @@ const envHelp = `
 Environment:
   CUCK_AGENT          default agent when none is given
   CUCK_NO_ANIMATION   set to 1 to always skip the intro
+  CUCK_SOUND          set to 1 for sound, 0 for silence
   CUCK_CONFIG         config file path (default %s)
   NO_COLOR            render the intro without colour
 `
@@ -75,6 +78,8 @@ func run(args []string) int {
 		animation.MinDuration.Milliseconds(), animation.MaxDuration.Milliseconds(), animation.DefaultDuration.Milliseconds()))
 	fps := fs.Int("fps", 0, fmt.Sprintf("intro frame rate (default %d)", animation.DefaultFPS))
 	colorFlag := fs.String("color", "", "colour mode: auto, truecolor, 256, 16 or none (default auto)")
+	soundOn := fs.Bool("sound", false, "play sound effects and the voice line (off by default)")
+	soundOff := fs.Bool("no-sound", false, "stay silent even if sound is on in the config")
 	dryRun := fs.Bool("dry-run", false, "print the command that would be launched and exit")
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	// --hooked marks a launch from the shell hook, i.e. the user typed the agent's name directly.
@@ -143,6 +148,7 @@ func run(args []string) int {
 
 	if shouldAnimate(*noAnim, cfg) && !(*hooked && shellhook.SkipIntro(rest)) {
 		opts, err := animationOptions(cfg, *durationMS, *fps, *colorFlag)
+		opts.Sound = sound.New(wantSound(cfg, *soundOn, *soundOff), expandHome(cfg.SoundFile))
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "cuck:", err)
 			return 2
@@ -182,6 +188,30 @@ func truthy(s string) bool {
 		return false
 	}
 	return true
+}
+
+// wantSound decides whether the intro makes noise: flags win, then
+// $CUCK_SOUND, then the config file. Default: silent.
+func wantSound(cfg config.Config, on, off bool) bool {
+	switch {
+	case off:
+		return false
+	case on:
+		return true
+	}
+	if v, ok := os.LookupEnv("CUCK_SOUND"); ok {
+		return truthy(v)
+	}
+	return cfg.Sound != nil && *cfg.Sound
+}
+
+func expandHome(p string) string {
+	if p == "~" || strings.HasPrefix(p, "~/") || strings.HasPrefix(p, `~\`) {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, p[1:])
+		}
+	}
+	return p
 }
 
 func animationOptions(cfg config.Config, durationMS, fps int, colorFlag string) (animation.Options, error) {

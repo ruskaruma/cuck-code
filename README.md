@@ -48,6 +48,8 @@ cuck setup                      # get cucked later / cuck uninstall to undo it
 command claude                  # skip the intro once
 ```
 
+Want sound? `cuck --sound`, or say yes when setup asks. It adds creaks, a kiss, and your agent asking *who got the good d?* right as he winks. It's off by default.
+
 Any key skips ahead during the intro, and Ctrl+C cancels. Config, every flag, the full list of supported agents and troubleshooting are in the [docs](docs/README.md).
 
 ## License

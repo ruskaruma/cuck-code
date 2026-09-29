@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ruskaruma/cuck-code/internal/sound"
 	"github.com/ruskaruma/cuck-code/internal/tty"
 )
 
@@ -37,9 +38,10 @@ type Options struct {
 	Duration  time.Duration
 	FPS       int
 	Color     ColorMode
-	ColorAuto bool   // detect the colour mode from the environment instead of using Color
-	Agent     string // the agent's name: he wears it on his name tag
-	Tagline   string // shown under the logo during the transition, e.g. "-> claude"
+	ColorAuto bool          // detect the colour mode from the environment instead of using Color
+	Agent     string        // the agent's name: he wears it on his name tag
+	Tagline   string        // shown under the logo during the transition, e.g. "-> claude"
+	Sound     *sound.Player // nil or disabled: silent
 }
 
 const (
@@ -107,6 +109,7 @@ func Play(o Options) (err error) {
 	enc := &Encoder{Mode: mode}
 	var cv, final *Canvas
 	storyT, fxT := 0.0, 0.0
+	nextCue, boomed := 0, false
 	ticker := time.NewTicker(time.Second / time.Duration(fps))
 	defer ticker.Stop()
 	last := time.Now()
@@ -120,6 +123,15 @@ func Play(o Options) (err error) {
 			cv = NewCanvas(w, h)
 			enc.Invalidate()
 			final = nil
+		}
+
+		for nextCue < len(soundCues) && soundCues[nextCue].t <= storyT {
+			o.Sound.Play(soundCues[nextCue].cue)
+			nextCue++
+		}
+		if storyT >= storyLen && !boomed {
+			o.Sound.Play(sound.Boom)
+			boomed = true
 		}
 
 		if storyT < storyLen {
@@ -169,6 +181,10 @@ func Play(o Options) (err error) {
 				return nil
 			default:
 				storyT = skipTarget
+				// Don't fire every skipped sound at once.
+				for nextCue < len(soundCues) && soundCues[nextCue].t < skipTarget {
+					nextCue++
+				}
 			}
 		}
 	}

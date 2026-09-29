@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -33,5 +34,24 @@ func TestLoad(t *testing.T) {
 	os.WriteFile(path, []byte(`{"agent":`), 0o600)
 	if _, err := Load(); err == nil {
 		t.Error("expected error for malformed config")
+	}
+}
+
+func TestSetKeepsOtherKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sub", "config.json")
+	t.Setenv("CUCK_CONFIG", path)
+	if err := Set("agent", "codex"); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(path, []byte(`{"agent":"codex","future_field":42}`), 0o600)
+	if err := Set("sound", true); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load()
+	if err != nil || c.Agent != "codex" || c.Sound == nil || !*c.Sound {
+		t.Fatalf("got %+v, %v", c, err)
+	}
+	if b, _ := os.ReadFile(path); !strings.Contains(string(b), "future_field") {
+		t.Errorf("unknown keys were dropped:\n%s", b)
 	}
 }
