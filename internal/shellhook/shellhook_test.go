@@ -3,6 +3,7 @@ package shellhook
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -74,7 +75,7 @@ func TestInstallRemoveBlock(t *testing.T) {
 	if strings.Count(string(b), beginMarker) != 1 || !strings.HasPrefix(string(b), orig) || !tg.Installed() {
 		t.Fatalf("bad install:\n%s", b)
 	}
-	if st, _ := os.Stat(path); st.Mode().Perm() != 0o600 {
+	if st, _ := os.Stat(path); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Errorf("mode changed to %v", st.Mode().Perm())
 	}
 	if err := tg.Remove(); err != nil {
