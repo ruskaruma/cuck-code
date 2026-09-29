@@ -1,6 +1,6 @@
 # Cuck Code installer for Windows.
 #
-#   irm https://raw.githubusercontent.com/ruskaruma/cuck-code/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/ruskaruma/cuck-code/main/packaging/install.ps1 | iex
 #
 # Environment:
 #   CUCK_VERSION      release tag to install (default: latest)

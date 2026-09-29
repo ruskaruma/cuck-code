@@ -39,7 +39,7 @@ jobs:
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             echo "release $GITHUB_REF_NAME already exists; skipping"
           else
-            gh release create "$GITHUB_REF_NAME" dist/* install.sh install.ps1 \
+            gh release create "$GITHUB_REF_NAME" dist/* packaging/install.sh packaging/install.ps1 \
               --title "$GITHUB_REF_NAME" --generate-notes \
               $([[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease)
           fi
@@ -48,11 +48,11 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          node npm/build.mjs "$GITHUB_REF_NAME"
+          node packaging/npm/build.mjs "$GITHUB_REF_NAME"
           tag=latest
           [[ "$GITHUB_REF_NAME" == *-* ]] && tag=next
           version="${GITHUB_REF_NAME#v}"
-          for dir in npm/out/cuck-code-* npm/out/cuck-code; do
+          for dir in packaging/npm/out/cuck-code-* packaging/npm/out/cuck-code; do
             name="$(node -p "require('./$dir/package.json').name")"
             if npm view "$name@$version" version >/dev/null 2>&1; then
               echo "$name@$version already published; skipping"

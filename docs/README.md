@@ -28,13 +28,15 @@ The scene isn't made of pre-drawn frames. cuck casts one ray per character cell 
 
 ```text
 cmd/cuck/            CLI, setup/uninstall/hook/agents commands
+cmd/preview/         renders frames/GIFs without a terminal (make demo)
 internal/animation/  scene, cast, timeline, transition, encoder
 internal/shellhook/  agent list, shell wrappers, startup-file editing
 internal/tty/        terminal modes, size, key polling, Windows VT mode
 internal/runner/     command parsing and exec
 internal/config/     config file
-npm/                 npm packages (launcher + per-platform binaries)
-tools/preview/       renders frames/GIFs without a terminal
+docs/assets/         logo, demo GIF, screenshots
+packaging/npm/       npm packages (launcher + per-platform binaries)
+packaging/install.*  curl / PowerShell installers
 ```
 
 ## Releasing
@@ -59,7 +61,7 @@ For a local build:
 ```bash
 make test                     # vet + tests
 make dist VERSION=v0.1.0      # dist/cuck-<os>-<arch>
-make npm VERSION=v0.1.0       # npm/out/, ready for npm publish
+make npm VERSION=v0.1.0       # packaging/npm/out/, ready for npm publish
 make demo                     # regenerate the GIF and screenshots
-go run ./tools/preview -t 6.9 -text   # print a frame as ASCII
+go run ./cmd/preview -t 6.9 -text   # print a frame as ASCII
 ```

@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/ruskaruma/cuck-code/main/assets/logo.svg" alt="Cuck Code" width="560">
+<img src="https://raw.githubusercontent.com/ruskaruma/cuck-code/main/docs/assets/logo.svg" alt="Cuck Code" width="560">
 
 **Your coding agent does the work. You watch from the chair.**
 
@@ -10,7 +10,7 @@ A cinematic ANSI intro that plays before Claude Code, Codex, Cursor, Gemini and 
 [![CI](https://github.com/ruskaruma/cuck-code/actions/workflows/ci.yml/badge.svg)](https://github.com/ruskaruma/cuck-code/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-![demo](https://raw.githubusercontent.com/ruskaruma/cuck-code/main/assets/demo.gif)
+![demo](https://raw.githubusercontent.com/ruskaruma/cuck-code/main/docs/assets/demo.gif)
 
 </div>
 
@@ -49,7 +49,7 @@ If you install with `sudo npm install -g`, the question applies to **every user 
 ### macOS / Linux, without npm
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ruskaruma/cuck-code/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/ruskaruma/cuck-code/main/packaging/install.sh | sh
 ```
 
 This installs to `~/.local/bin`, verifies the SHA-256 checksum and asks the same question. You can set `CUCK_INSTALL_DIR`, `CUCK_VERSION` or `CUCK_SKIP_SETUP=1` to change that.
@@ -57,7 +57,7 @@ This installs to `~/.local/bin`, verifies the SHA-256 checksum and asks the same
 ### Windows, without npm
 
 ```powershell
-irm https://raw.githubusercontent.com/ruskaruma/cuck-code/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/ruskaruma/cuck-code/main/packaging/install.ps1 | iex
 ```
 
 This installs to `%LOCALAPPDATA%\Programs\cuck`, adds it to your user `PATH` and asks the question.

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Cuck Code installer for macOS and Linux.
 #
-#   curl -fsSL https://raw.githubusercontent.com/ruskaruma/cuck-code/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/ruskaruma/cuck-code/main/packaging/install.sh | sh
 #
 # Environment:
 #   CUCK_VERSION      release tag to install (default: latest)

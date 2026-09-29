@@ -1,16 +1,16 @@
 // Assembles the npm packages from the Go binaries in dist/.
 //
-//   node npm/build.mjs 1.2.3      ->  npm/out/cuck-code, npm/out/cuck-code-<os>-<cpu>
+//   node packaging/npm/build.mjs 1.2.3  ->  packaging/npm/out/cuck-code, packaging/npm/out/cuck-code-<os>-<cpu>
 //
 // Publish the platform packages first, then cuck-code (see the release workflow).
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const version = (process.argv[2] || "").replace(/^v/, "");
 if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
-  console.error("usage: node npm/build.mjs <semver>");
+  console.error("usage: node packaging/npm/build.mjs <semver>");
   process.exit(2);
 }
 
@@ -23,8 +23,8 @@ const targets = [
   { goos: "windows", goarch: "arm64", os: "win32", cpu: "arm64" },
 ];
 
-const main = JSON.parse(fs.readFileSync(path.join(root, "npm/cuck-code/package.json"), "utf8"));
-const out = path.join(root, "npm/out");
+const main = JSON.parse(fs.readFileSync(path.join(root, "packaging/npm/cuck-code/package.json"), "utf8"));
+const out = path.join(root, "packaging/npm/out");
 fs.rmSync(out, { recursive: true, force: true });
 
 const shared = {
@@ -62,7 +62,7 @@ for (const t of targets) {
 }
 
 const mainDir = path.join(out, "cuck-code");
-fs.cpSync(path.join(root, "npm/cuck-code"), mainDir, { recursive: true });
+fs.cpSync(path.join(root, "packaging/npm/cuck-code"), mainDir, { recursive: true });
 main.version = version;
 fs.writeFileSync(path.join(mainDir, "package.json"), JSON.stringify(main, null, 2) + "\n");
 fs.copyFileSync(path.join(root, "README.md"), path.join(mainDir, "README.md"));

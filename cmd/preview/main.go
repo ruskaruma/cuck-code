@@ -2,9 +2,9 @@
 // a PNG of a single moment, or an animated GIF of the whole sequence. It is a
 // development tool (used for the README demo) and is not part of the cuck binary.
 //
-//	go run ./tools/preview -t 5.4 -o frame.png
-//	go run ./tools/preview -gif -o assets/demo.gif
-//	go run ./tools/preview -t 5.4 -text            # plain ASCII to stdout
+//	go run ./cmd/preview -t 5.4 -o frame.png
+//	go run ./cmd/preview -gif -o docs/assets/demo.gif
+//	go run ./cmd/preview -t 5.4 -text            # plain ASCII to stdout
 package main
 
 import (
