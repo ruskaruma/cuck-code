@@ -52,11 +52,8 @@ jobs:
           tag=latest
           [[ "$GITHUB_REF_NAME" == *-* ]] && tag=next
           version="${GITHUB_REF_NAME#v}"
-          for dir in packaging/npm/out/cuck-code-* packaging/npm/out/cuck-code; do
-            name="$(node -p "require('./$dir/package.json').name")"
-            if npm view "$name@$version" version >/dev/null 2>&1; then
-              echo "$name@$version already published; skipping"
-            else
-              npm publish "$dir" --access public --provenance --tag "$tag"
-            fi
-          done
+          if npm view "cuck-code@$version" version >/dev/null 2>&1; then
+            echo "cuck-code@$version already published; skipping"
+          else
+            npm publish packaging/npm/out/cuck-code --access public --provenance --tag "$tag"
+          fi

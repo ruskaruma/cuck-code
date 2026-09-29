@@ -225,7 +225,7 @@ When no agent is given, cuck picks one in this order: `--agent`, then a position
 
 **npm never asked me the question.** npm can't prompt when there's no terminal (CI, some IDE terminals). pnpm and Bun don't run install scripts unless you approve them. In either case, run `cuck setup` yourself.
 
-**`the cuck-code-<platform> package is missing`.** The native binary was skipped by `--omit=optional` or `--no-optional`. Reinstall without it.
+**`the <platform> binary is missing`.** The install was interrupted or modified. Reinstall with `npm install -g cuck-code`.
 
 **The colours look wrong.** Force a mode with `--color 256`, `--color 16` or `--color none`, or set `"color"` in the config file.
 
@@ -252,7 +252,7 @@ internal/tty/        terminal modes, size, key polling, Windows VT mode
 internal/runner/     command parsing and exec
 internal/config/     config file
 docs/assets/         logo, demo GIF, screenshots
-packaging/npm/       npm packages (launcher + per-platform binaries)
+packaging/npm/       npm package (launcher + all six binaries)
 packaging/install.*  curl / PowerShell installers
 ```
 
@@ -269,7 +269,7 @@ git tag v0.1.0 && git push origin v0.1.0
 1. Runs the tests.
 2. Builds all six binaries.
 3. Creates the GitHub release with checksums and the install scripts.
-4. Publishes `cuck-code` and its `cuck-code-<os>-<cpu>` packages to npm. This needs an `NPM_TOKEN` repository secret.
+4. Publishes `cuck-code` to npm, with all six binaries inside. This needs an `NPM_TOKEN` repository secret.
 
 Tags with a hyphen (`v0.2.0-rc.1`) become prereleases published under the `next` npm tag.
 
