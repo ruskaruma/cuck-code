@@ -16,13 +16,11 @@ A cinematic ANSI intro that plays before Claude Code, Codex, Cursor, Gemini and 
 
 ## The story
 
-You like delegating your work to agents. You hand over the task, lean back, and watch someone else do what you were supposed to do. Cuck Code just makes it honest.
+You don't write code anymore. You delegate it. The feature, the bug fix, the refactor, the tests: all of it goes to Claude, Codex, Cursor or whichever agent is hot this week, while you sit back and watch the diffs roll in.
 
-Every time you start your agent, your terminal becomes the view from the chair in the corner of the bedroom. She's already in bed, and she isn't waiting for you. The sign above her says it plainly: *take the back seat, let it do the work.*
+So let's be honest about the relationship. Your program isn't waiting for you. She's lying there waiting for her real man to show up and do her properly, and you both know it isn't you. You're just the guy in the chair.
 
-The door opens and your agent walks in, name tag and all. She doesn't hide her relief. Finally, someone who does it right. He climbs onto the bed, leans in and kisses her, while you sit there doing exactly nothing. Then he turns around, looks you dead in the eye, smirks, and winks.
-
-The lights go out. Your agent gets to work.
+Cuck Code makes it official. Every time you start your agent, you take your seat in the corner, lean back, and let it do the work.
 
 There are no dependencies. It's one small binary you install and forget about.
 
