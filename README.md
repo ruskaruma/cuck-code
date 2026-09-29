@@ -6,7 +6,7 @@
 
 A cinematic ANSI intro that plays before Claude Code, Codex, Cursor, Gemini and every other terminal coding agent.
 
-[![npm](https://img.shields.io/npm/v/cuck-code?color=cb3837&logo=npm)](https://www.npmjs.com/package/cuck-code)
+[![npm](https://img.shields.io/npm/v/cuck-code?color=blue&logo=npm)](https://www.npmjs.com/package/cuck-code)
 [![CI](https://github.com/ruskaruma/cuck-code/actions/workflows/ci.yml/badge.svg)](https://github.com/ruskaruma/cuck-code/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
