@@ -1,0 +1,62 @@
+name: Release
+
+# Push a tag like v0.1.0 to build every platform, create the GitHub release
+# and publish to npm. Requires the NPM_TOKEN repository secret.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write # npm provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Test
+        run: make test
+
+      - name: Build binaries
+        run: make dist VERSION=${GITHUB_REF_NAME}
+
+      - name: Checksums
+        run: cd dist && sha256sum cuck-* > checksums.txt && cat checksums.txt
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "release $GITHUB_REF_NAME already exists; skipping"
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* install.sh install.ps1 \
+              --title "$GITHUB_REF_NAME" --generate-notes \
+              $([[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease)
+          fi
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          node npm/build.mjs "$GITHUB_REF_NAME"
+          tag=latest
+          [[ "$GITHUB_REF_NAME" == *-* ]] && tag=next
+          version="${GITHUB_REF_NAME#v}"
+          for dir in npm/out/cuck-code-* npm/out/cuck-code; do
+            name="$(node -p "require('./$dir/package.json').name")"
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version already published; skipping"
+            else
+              npm publish "$dir" --access public --provenance --tag "$tag"
+            fi
+          done
