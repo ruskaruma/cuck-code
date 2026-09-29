@@ -1,6 +1,6 @@
 <div align="center">
 
-# Cuck Code
+<img src="https://raw.githubusercontent.com/ruskaruma/cuck-code/main/assets/logo.svg" alt="Cuck Code" width="560">
 
 **Your coding agent does the work. You watch from the chair.**
 
