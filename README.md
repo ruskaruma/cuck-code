@@ -14,26 +14,17 @@ A cinematic ANSI intro that plays before Claude Code, Codex, Cursor, Gemini and 
 
 </div>
 
-You don't write the code anymore. Your agent does. You just watch. Cuck Code makes that honest.
+## The story
 
-Type `claude` and your terminal becomes a fixed camera at eye level in *the chair*. She's already in bed, propped up and watching the door, under a sign that reads **TAKE THE BACK SEAT. LET IT DO THE WORK.** The door opens and in walks your agent (name tag: `[claude]`, white tank top).
+You like delegating your work to agents. You hand over the task, lean back, and watch someone else do what you were supposed to do. Cuck Code just makes it honest.
 
-*"finally. someone who does it right."*
+Every time you start your agent, your terminal becomes the view from the chair in the corner of the bedroom. She's already in bed, and she isn't waiting for you. The sign above her says it plainly: *take the back seat, let it do the work.*
 
-Her eyes follow him to the bed. He puts a knee up and leans over her. The bed creaks, her knees come up under the blanket and she squirms.
+The door opens and your agent walks in, name tag and all. She doesn't hide her relief. Finally, someone who does it right. He climbs onto the bed, leans in and kisses her, while you sit there doing exactly nothing. Then he turns around, looks you dead in the eye, smirks, and winks.
 
-He leans all the way in and kisses her. *\*smooch\** `<3`
+The lights go out. Your agent gets to work.
 
-*"take me to heaven."*
-
-Then he pulls back, turns his head and looks at you over his shoulder, holds eye contact and smirks. *"relax. i'll take it from here."* He winks with a big toothy grin, the lights go out, and Claude Code opens and does your work.
-
-| | |
-|---|---|
-| ![](https://raw.githubusercontent.com/ruskaruma/cuck-code/main/assets/screenshots/3-take-me-to-heaven.png) | ![](https://raw.githubusercontent.com/ruskaruma/cuck-code/main/assets/screenshots/4-the-kiss.png) |
-| ![](https://raw.githubusercontent.com/ruskaruma/cuck-code/main/assets/screenshots/5-look-back.png) | ![](https://raw.githubusercontent.com/ruskaruma/cuck-code/main/assets/screenshots/6-wink.png) |
-
-It's a single native binary with no runtime dependencies. It runs on macOS, Linux and Windows 10+, on both x64 and ARM64.
+There are no dependencies. It's one small binary you install and forget about.
 
 ---
 
@@ -250,67 +241,13 @@ The config file is optional and can contain any of the fields below.
 
 When no agent is given, cuck picks one in this order: `--agent`, then a positional agent, then `$CUCK_AGENT`, then `agent` in the config file, then `claude`.
 
-## Troubleshooting
+## More
 
-**Typing `claude` doesn't play the intro after setup.** Open a new terminal, because existing ones haven't re-read their startup files. Then run `type claude`, which should say it's a function. If you define your own `alias claude=...`, the alias wins; remove it or wrap it with `cuck`.
+Troubleshooting, how it works under the hood, and how releases are cut are in [docs/README.md](docs/README.md).
 
-**npm never asked me the question.** npm can't prompt when there's no terminal (CI, some IDE terminals). pnpm and Bun don't run install scripts unless you approve them. In either case, run `cuck setup` yourself.
+## Who's behind this
 
-**`the cuck-code-<platform> package is missing`.** The native binary was skipped by `--omit=optional` or `--no-optional`. Reinstall without it.
-
-**The colours look wrong.** Force a mode with `--color 256`, `--color 16` or `--color none`, or set `"color"` in the config file.
-
-**There's a short pause after the wink.** That's the agent starting up. Claude Code, for example, takes a second to boot. cuck prints *"claude is taking it from here..."* while you wait.
-
-**My terminal is tiny.** Below 40×14 you get the same story as text captions.
-
-## How it works
-
-The scene isn't made of pre-drawn frames. cuck casts one ray per character cell from a fixed camera at seated eye height, into a small 3D bedroom:
-
-- **Room.** A hinged door with a lit hallway behind it, a bed, a nightstand lamp, a curtained window and a rug. The lighting comes from the lamp, the hallway (through the doorway only), moonlight and the glow of your own screen.
-- **Cast.** She's built from animated ellipsoids under the blanket; she blinks, bounces a foot, props herself up, follows him with her eyes, draws her knees up and squirms. He's a billboard standing in the world, so perspective and occlusion by the door frame and bed come for free, with limbs driven by a walk cycle and a lean for climbing onto the bed. His head turns independently of his body for the look back, and his face is drawn feature by feature (brows, eyes, blush, mouth) so the stare, smirk and wink stay crisp at any size.
-- **Camera.** It never moves. The chair's red leather armrests sit in the bottom corners.
-- **Output.** Frames are quantised per terminal to 24-bit, 256-colour, 16-colour or plain ASCII, and only changed cells are redrawn. No Unicode is required.
-- **Terminal handling.** The intro runs on the alternate screen with the cursor hidden and keyboard echo off. Keys typed during the show never leak into the agent. The terminal is restored on normal exit, Ctrl+C, SIGTERM, SIGHUP and panics.
-
-```text
-cmd/cuck/            CLI, setup/uninstall/hook/agents commands
-internal/animation/  scene, cast, timeline, transition, encoder
-internal/shellhook/  agent list, shell wrappers, startup-file editing
-internal/tty/        terminal modes, size, key polling, Windows VT mode
-internal/runner/     command parsing and exec
-internal/config/     config file
-npm/                 npm packages (launcher + per-platform binaries)
-tools/preview/       renders frames/GIFs without a terminal
-```
-
-## Releasing
-
-Releases are cut by pushing a tag:
-
-```bash
-git tag v0.1.0 && git push origin v0.1.0
-```
-
-[`.github/workflows/release.yml`](.github/workflows/release.yml) then does the following:
-
-1. Runs the tests.
-2. Builds all six binaries.
-3. Creates the GitHub release with checksums and the install scripts.
-4. Publishes `cuck-code` and its `cuck-code-<os>-<cpu>` packages to npm. This needs an `NPM_TOKEN` repository secret.
-
-Tags with a hyphen (`v0.2.0-rc.1`) become prereleases published under the `next` npm tag.
-
-For a local build:
-
-```bash
-make test                     # vet + tests
-make dist VERSION=v0.1.0      # dist/cuck-<os>-<arch>
-make npm VERSION=v0.1.0       # npm/out/, ready for npm publish
-make demo                     # regenerate the GIF and screenshots
-go run ./tools/preview -t 6.9 -text   # print a frame as ASCII
-```
+Run and managed by [@ruskaruma08](https://x.com/ruskaruma08) and [@ishaans08](https://x.com/ishaans08) on X.
 
 ## License
 
