@@ -190,7 +190,7 @@ func pitch(out io.Writer, targets []shellhook.Target, sys bool, cfg config.Confi
 	}
 
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "  "+bold("CUCK CODE"))
+	banner(out)
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "  From now on, when you type any of these, you watch from the chair first:")
 	fmt.Fprintln(out)

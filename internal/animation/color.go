@@ -177,3 +177,13 @@ func to16(c RGB) int {
 	}
 	return best
 }
+
+// Paint returns the escape sequence selecting c as the foreground (or
+// background) colour in mode m; it is empty in ModeNone.
+func (m ColorMode) Paint(c RGB, background bool) string {
+	e := Encoder{Mode: m}
+	if m == ModeNone {
+		return ""
+	}
+	return "\x1b[" + string(e.appendColor(nil, e.colorKey(c), background)) + "m"
+}

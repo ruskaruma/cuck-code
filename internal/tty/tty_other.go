@@ -15,3 +15,5 @@ func (t *Terminal) pollKey() (byte, bool)   { return 0, false }
 func (t *Terminal) restore()                {}
 
 func openConsole() (*os.File, *os.File, error) { return nil, nil, ErrNotTerminal }
+
+func width(*os.File) int { return 0 }

@@ -88,3 +88,11 @@ func openConsole() (*os.File, *os.File, error) {
 	}
 	return f, f, nil
 }
+
+func width(f *os.File) int {
+	ws, err := unix.IoctlGetWinsize(int(f.Fd()), unix.TIOCGWINSZ)
+	if err != nil {
+		return 0
+	}
+	return int(ws.Col)
+}

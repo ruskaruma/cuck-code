@@ -56,3 +56,7 @@ func IsTerminal(f *os.File) bool { return isTerminal(f) }
 // stdout. It lets `cuck setup` ask its question even when started by a
 // package manager that has redirected the standard streams.
 func OpenConsole() (in, out *os.File, err error) { return openConsole() }
+
+// Width reports the width in columns of the terminal f is attached to, or 0
+// if f is not a terminal.
+func Width(f *os.File) int { return width(f) }
