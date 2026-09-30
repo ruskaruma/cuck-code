@@ -159,7 +159,7 @@ cuck --dry-run yolo               # print what would run
 | `--duration` | `7500` | intro length in ms (3000–30000); the story speeds up or slows down to fit |
 | `--fps` | `30` | frame rate (5–60) |
 | `--color` | `auto` | `truecolor`, `256`, `16` or `none` |
-| `--sound` / `--no-sound` | off | sound effects and the voice line |
+| `--no-sound` | | play the intro silently (`--sound` forces it on) |
 | `--dry-run` | | print the resolved command and exit |
 | `--version` | | |
 
@@ -180,7 +180,7 @@ cuck checks that the agent exists **before** the intro, so a typo won't cost you
 |---|---|
 | `CUCK_AGENT` | default agent when none is given |
 | `CUCK_NO_ANIMATION=1` | never play the intro (the hook stays installed but launches instantly) |
-| `CUCK_SOUND=1` / `CUCK_SOUND=0` | force sound on or off |
+| `CUCK_SOUND=0` | play the intro silently |
 | `CUCK_SKIP_SETUP=1` | don't ask the question during `npm install` or the install scripts |
 | `CUCK_CONFIG` | config file path |
 | `NO_COLOR` | render the intro in plain ASCII |
@@ -206,7 +206,7 @@ The config file is optional and can contain any of the fields below.
   "duration_ms": 7500,
   "fps": 30,
   "color": "auto",
-  "sound": true,
+  "sound": false,
   "sound_file": "~/Music/good-d.mp3",
   "hook_agents": ["my-internal-agent"],
   "hook_exclude": ["cursor", "goose"]
@@ -219,7 +219,7 @@ The config file is optional and can contain any of the fields below.
 | `agents` | aliases: `cuck yolo` runs the command line on the right |
 | `animation` | `false` never plays the intro |
 | `duration_ms`, `fps`, `color` | same as the flags |
-| `sound` | `true` plays the sound effects and voice line (off by default) |
+| `sound` | `false` plays the intro silently (sound is on by default) |
 | `sound_file` | your own clip (wav, mp3, ...) to play instead of the built-in voice line |
 | `hook_agents` | extra commands for the shell hook to wrap |
 | `hook_exclude` | built-in agents the hook should leave alone |
@@ -228,7 +228,7 @@ When no agent is given, cuck picks one in this order: `--agent`, then a position
 
 ## Sound
 
-Sound is off by default. Turn it on with `--sound`, `"sound": true` in the config, `CUCK_SOUND=1`, or by saying yes to the second question in `cuck setup`.
+Sound is on by default. Turn it off with `--no-sound`, `"sound": false` in the config, or `CUCK_SOUND=0`.
 
 | When | Sound |
 |---|---|

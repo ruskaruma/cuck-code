@@ -49,7 +49,7 @@ const envHelp = `
 Environment:
   CUCK_AGENT          default agent when none is given
   CUCK_NO_ANIMATION   set to 1 to always skip the intro
-  CUCK_SOUND          set to 1 for sound, 0 for silence
+  CUCK_SOUND          set to 0 to play the intro silently
   CUCK_CONFIG         config file path (default %s)
   NO_COLOR            render the intro without colour
 `
@@ -78,8 +78,8 @@ func run(args []string) int {
 		animation.MinDuration.Milliseconds(), animation.MaxDuration.Milliseconds(), animation.DefaultDuration.Milliseconds()))
 	fps := fs.Int("fps", 0, fmt.Sprintf("intro frame rate (default %d)", animation.DefaultFPS))
 	colorFlag := fs.String("color", "", "colour mode: auto, truecolor, 256, 16 or none (default auto)")
-	soundOn := fs.Bool("sound", false, "play sound effects and the voice line (off by default)")
-	soundOff := fs.Bool("no-sound", false, "stay silent even if sound is on in the config")
+	soundOn := fs.Bool("sound", false, "play sound even if it is turned off in the config")
+	soundOff := fs.Bool("no-sound", false, "play the intro silently")
 	dryRun := fs.Bool("dry-run", false, "print the command that would be launched and exit")
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	// --hooked marks a launch from the shell hook, i.e. the user typed the agent's name directly.
@@ -190,8 +190,8 @@ func truthy(s string) bool {
 	return true
 }
 
-// wantSound decides whether the intro makes noise: flags win, then
-// $CUCK_SOUND, then the config file. Default: silent.
+// wantSound decides whether the intro makes noise. Sound is on by default;
+// flags win, then $CUCK_SOUND, then "sound" in the config file.
 func wantSound(cfg config.Config, on, off bool) bool {
 	switch {
 	case off:
@@ -202,7 +202,7 @@ func wantSound(cfg config.Config, on, off bool) bool {
 	if v, ok := os.LookupEnv("CUCK_SOUND"); ok {
 		return truthy(v)
 	}
-	return cfg.Sound != nil && *cfg.Sound
+	return cfg.Sound == nil || *cfg.Sound
 }
 
 func expandHome(p string) string {

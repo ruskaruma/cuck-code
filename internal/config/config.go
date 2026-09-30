@@ -11,7 +11,7 @@
 //	  "duration_ms": 7500,
 //	  "fps": 30,
 //	  "color": "auto",
-//	  "sound": true,
+//	  "sound": false,
 //	  "sound_file": "~/Music/good-d.mp3",
 //	  "hook_agents": ["my-agent"],
 //	  "hook_exclude": ["cursor"]
@@ -41,7 +41,7 @@ type Config struct {
 	FPS int `json:"fps"`
 	// Color is the colour mode: auto, truecolor, 256, 16 or none.
 	Color string `json:"color"`
-	// Sound turns on the intro's sound effects and voice line (off by default).
+	// Sound can be set to false to play the intro silently (sound is on by default).
 	Sound *bool `json:"sound"`
 	// SoundFile replaces the built-in voice line with your own clip (wav, mp3, ...).
 	SoundFile string `json:"sound_file"`
