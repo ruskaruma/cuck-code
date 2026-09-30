@@ -72,18 +72,19 @@ func Script(shell string, agents []string) (string, error) {
 	switch shell {
 	case "bash", "zsh":
 		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: command <agent>\n")
+		// If cuck has been uninstalled, fall straight through to the real agent.
 		for _, a := range agents {
-			fmt.Fprintf(&b, "%s() { command cuck --hooked --agent %s -- \"$@\"; }\n", a, a)
+			fmt.Fprintf(&b, "%s() { if command -v cuck >/dev/null 2>&1; then command cuck --hooked --agent %s -- \"$@\"; else command %s \"$@\"; fi; }\n", a, a, a)
 		}
 	case "fish":
 		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: command <agent>\n")
 		for _, a := range agents {
-			fmt.Fprintf(&b, "function %s --wraps %s; command cuck --hooked --agent %s -- $argv; end\n", a, a, a)
+			fmt.Fprintf(&b, "function %s --wraps %s; if type -q cuck; command cuck --hooked --agent %s -- $argv; else; command %s $argv; end; end\n", a, a, a, a)
 		}
 	case "powershell", "pwsh":
 		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: & (Get-Command <agent> -CommandType Application)\n")
 		for _, a := range agents {
-			fmt.Fprintf(&b, "function global:%s { & cuck --hooked --agent %s -- @args }\n", a, a)
+			fmt.Fprintf(&b, "function global:%s { if (Get-Command cuck -ErrorAction SilentlyContinue) { & cuck --hooked --agent %s -- @args } else { & (Get-Command %s -CommandType Application | Select-Object -First 1) @args } }\n", a, a, a)
 		}
 	default:
 		return "", fmt.Errorf("unsupported shell %q (want %s)", shell, strings.Join(Shells, ", "))

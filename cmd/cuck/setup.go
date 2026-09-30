@@ -252,6 +252,7 @@ func cmdUninstall(args []string, _ config.Config) int {
 		fmt.Println("Nothing to undo: the hook isn't installed.")
 	default:
 		fmt.Println("\n  You're out of the chair. Open a new terminal for it to take effect.")
+		fmt.Println("  (Terminals that are already open keep working: their `claude` etc. now run directly.)")
 	}
 	return 0
 }
