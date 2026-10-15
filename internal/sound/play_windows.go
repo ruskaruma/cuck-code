@@ -23,3 +23,6 @@ func start(path string) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x00000008} // DETACHED_PROCESS
 	_ = cmd.Start()
 }
+
+// PlayerName is the program sounds play through.
+func PlayerName() string { return "PowerShell" }

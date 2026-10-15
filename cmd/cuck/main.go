@@ -30,6 +30,8 @@ Usage:
   cuck setup [--yes] [--system]    make typing any agent's name play the intro
   cuck uninstall                   undo setup
   cuck agents                      list the agents setup wraps
+  cuck doctor                      check why typing an agent does or doesn't play the intro
+  cuck demo [agent]                play the intro without launching anything
   cuck hook <bash|zsh|fish|powershell>  print the shell hook (used by setup)
 
 Examples:

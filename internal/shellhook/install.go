@@ -23,18 +23,26 @@ type Target struct {
 	Own   bool // the whole file belongs to cuck (fish conf.d); otherwise a marked block inside it
 }
 
-func (t Target) loader() string {
+// loader is the line placed in the startup file. It finds cuck on PATH, or
+// at self (its absolute path at setup time) when PATH isn't ready yet.
+func (t Target) loader(self string) string {
 	switch t.Shell {
 	case "fish":
-		return "if type -q cuck\n    cuck hook fish | source\nend"
+		return "if type -q cuck\n    cuck hook fish | source\nelse if test -x " + fishQuote(self) + "\n    " + fishQuote(self) + " hook fish | source\nend"
 	case "powershell":
-		return "if (Get-Command cuck -ErrorAction SilentlyContinue) { Invoke-Expression ((& cuck hook powershell) -join \"`n\") }"
+		return "$__cuck = (Get-Command cuck -ErrorAction SilentlyContinue | Select-Object -First 1).Source; if (-not $__cuck -and (Test-Path -LiteralPath " + psQuote(self) + ")) { $__cuck = " + psQuote(self) + " }; if ($__cuck) { Invoke-Expression ((& $__cuck hook powershell) -join \"`n\") }"
 	}
-	return "if command -v cuck >/dev/null 2>&1; then eval \"$(cuck hook " + t.Shell + ")\"; fi"
+	guard := `[ -n "$ZSH_VERSION" ]`
+	if t.Shell == "bash" {
+		// Also safe in ~/.profile, which plain sh reads too.
+		guard = `[ -n "$BASH_VERSION" ]`
+	}
+	q := shQuote(self)
+	return "if " + guard + "; then\n  if command -v cuck >/dev/null 2>&1; then eval \"$(cuck hook " + t.Shell + ")\"\n  elif [ -x " + q + " ]; then eval \"$(" + q + " hook " + t.Shell + ")\"; fi\nfi"
 }
 
-func (t Target) block() string {
-	return beginMarker + "\n# Coding agents play the Cuck Code intro first. Undo with: cuck uninstall\n" + t.loader() + "\n" + endMarker + "\n"
+func (t Target) block(self string) string {
+	return beginMarker + "\n# Coding agents play the Cuck Code intro first. Undo with: cuck uninstall\n" + t.loader(self) + "\n" + endMarker + "\n"
 }
 
 // Targets returns the startup files to hook for the shells installed on this
@@ -60,8 +68,17 @@ func Targets(system bool) []Target {
 			} else if home != "" {
 				ts = append(ts, Target{Shell: "bash", Path: filepath.Join(home, ".bashrc")})
 				if runtime.GOOS == "darwin" {
-					// macOS Terminal starts bash as a login shell, which skips .bashrc.
-					ts = append(ts, Target{Shell: "bash", Path: filepath.Join(home, ".bash_profile")})
+					// macOS Terminal starts bash as a login shell, which skips
+					// .bashrc. Use whichever login file bash will read; never
+					// create .bash_profile, which would stop bash reading .profile.
+					login := filepath.Join(home, ".profile")
+					for _, f := range []string{".bash_profile", ".bash_login"} {
+						if _, err := os.Stat(filepath.Join(home, f)); err == nil {
+							login = filepath.Join(home, f)
+							break
+						}
+					}
+					ts = append(ts, Target{Shell: "bash", Path: login})
 				}
 			}
 		}
@@ -107,6 +124,25 @@ func Targets(system bool) []Target {
 	return ts
 }
 
+// Leftovers returns every startup file that might hold the hook from any
+// version of cuck, for uninstall and doctor.
+func Leftovers(system bool) []Target {
+	ts := Targets(system)
+	if home, err := os.UserHomeDir(); err == nil && !system {
+		for _, f := range []string{".bashrc", ".bash_profile", ".bash_login", ".profile"} {
+			p := filepath.Join(home, f)
+			seen := false
+			for _, t := range ts {
+				seen = seen || t.Path == p
+			}
+			if !seen {
+				ts = append(ts, Target{Shell: "bash", Path: p})
+			}
+		}
+	}
+	return ts
+}
+
 // Installed reports whether t currently contains the hook.
 func (t Target) Installed() bool {
 	b, err := os.ReadFile(t.Path)
@@ -116,13 +152,14 @@ func (t Target) Installed() bool {
 	return t.Own || bytes.Contains(b, []byte(beginMarker))
 }
 
-// Install writes (or refreshes) the hook in t.
-func (t Target) Install() error {
+// Install writes (or refreshes) the hook in t. self is the absolute path of
+// the cuck binary, remembered as a fallback for when it isn't on PATH.
+func (t Target) Install(self string) error {
 	if err := os.MkdirAll(filepath.Dir(t.Path), 0o755); err != nil {
 		return err
 	}
 	if t.Own {
-		return os.WriteFile(t.Path, []byte(t.block()), 0o644)
+		return os.WriteFile(t.Path, []byte(t.block(self)), 0o644)
 	}
 	old, err := os.ReadFile(t.Path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -136,7 +173,7 @@ func (t Target) Install() error {
 		content += "\n"
 	}
 	// WriteFile follows symlinks, so dotfile managers keep working.
-	return os.WriteFile(t.Path, []byte(content+t.block()), fileMode(t.Path))
+	return os.WriteFile(t.Path, []byte(content+t.block(self)), fileMode(t.Path))
 }
 
 // Remove deletes the hook from t. It is a no-op when the hook is absent.

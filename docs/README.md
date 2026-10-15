@@ -168,6 +168,8 @@ cuck --dry-run yolo               # print what would run
 | `cuck setup` | get cucked (install the shell hook) |
 | `cuck uninstall` | stop getting cucked |
 | `cuck agents` | list wrapped agents and where the hook is installed |
+| `cuck doctor` | check why typing an agent does or doesn't play the intro, and how to fix it |
+| `cuck demo [agent]` | play the intro without launching anything |
 | `cuck hook <shell>` | print the hook code for `bash`, `zsh`, `fish` or `powershell` |
 
 cuck checks that the agent exists **before** the intro, so a typo won't cost you the show. On macOS and Linux the agent replaces the cuck process (`exec`), so signals, job control and exit codes behave exactly as if you had run the agent yourself. On Windows, cuck waits for the agent and exits with its exit code.
@@ -245,7 +247,7 @@ To use your own clip for the voice line, point `"sound_file"` at it. WAV works e
 
 ## Troubleshooting
 
-**Typing `claude` doesn't play the intro after setup.** Open a new terminal, because existing ones haven't re-read their startup files. Then run `type claude`, which should say it's a function. If you define your own `alias claude=...`, the alias wins; remove it or wrap it with `cuck`.
+**Typing `claude` doesn't play the intro after setup.** Run `cuck doctor`: it opens a fresh shell behind the scenes and tells you exactly what `claude` resolves to and why. The usual cause is the terminal you installed from: it read its startup files before the hook existed, so run `source ~/.bashrc` / `source ~/.zshrc` there, or open a new terminal. Aliases (like the `alias claude=~/.claude/local/claude` Claude Code's installer adds) are handled automatically. If something redefines the agent *after* the cuck-code block, move the block to the end of the file.
 
 **npm never asked me the question.** npm can't prompt when there's no terminal (CI, some IDE terminals). pnpm and Bun don't run install scripts unless you approve them. In either case, run `cuck setup` yourself.
 

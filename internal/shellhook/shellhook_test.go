@@ -33,15 +33,20 @@ func TestAgents(t *testing.T) {
 
 func TestScript(t *testing.T) {
 	for _, sh := range Shells {
-		s, err := Script(sh, []string{"claude", "kiro-cli"})
+		s, err := Script(sh, []string{"claude", "kiro-cli"}, "/opt/it's/cuck")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(s, "--hooked --agent kiro-cli") {
-			t.Errorf("%s script missing wrapper:\n%s", sh, s)
+		for _, want := range []string{"kiro-cli", "--hooked --agent", "it"} {
+			if !strings.Contains(s, want) {
+				t.Errorf("%s script missing %q:\n%s", sh, want, s)
+			}
+		}
+		if sh != "fish" && !strings.Contains(s, "__cuck_t_kiro_cli") {
+			t.Errorf("%s script doesn't remember alias targets:\n%s", sh, s)
 		}
 	}
-	if _, err := Script("tcsh", nil); err == nil {
+	if _, err := Script("tcsh", nil, ""); err == nil {
 		t.Error("expected error for unsupported shell")
 	}
 }
@@ -70,7 +75,7 @@ func TestInstallRemoveBlock(t *testing.T) {
 	tg := Target{Shell: "zsh", Path: path}
 
 	for i := 0; i < 2; i++ { // installing twice must not duplicate the block
-		if err := tg.Install(); err != nil {
+		if err := tg.Install("/usr/local/bin/cuck"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -94,7 +99,7 @@ func TestInstallRemoveBlock(t *testing.T) {
 func TestInstallOwnFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "conf.d", "cuck-code.fish")
 	tg := Target{Shell: "fish", Path: path, Own: true}
-	if err := tg.Install(); err != nil || !tg.Installed() {
+	if err := tg.Install("/usr/local/bin/cuck"); err != nil || !tg.Installed() {
 		t.Fatal("fish hook not installed", err)
 	}
 	if err := tg.Remove(); err != nil || tg.Installed() {

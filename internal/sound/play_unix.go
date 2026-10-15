@@ -45,3 +45,11 @@ func start(path string) {
 	cmd := exec.Command("/bin/sh", append([]string{"-c", `trap '' HUP; "$@" >/dev/null 2>&1 &`, "sh"}, argv...)...)
 	_ = cmd.Run()
 }
+
+// PlayerName is the program sounds play through, or "" if there is none.
+func PlayerName() string {
+	if argv := player("x.wav"); argv != nil {
+		return argv[0]
+	}
+	return ""
+}

@@ -22,6 +22,8 @@ var subcommands = map[string]func(args []string, cfg config.Config) int{
 	"uninstall": cmdUninstall,
 	"hook":      cmdHook,
 	"agents":    cmdAgents,
+	"doctor":    cmdDoctor,
+	"demo":      cmdDemo,
 }
 
 func hookAgents(cfg config.Config) []string {
@@ -34,7 +36,7 @@ func cmdHook(args []string, cfg config.Config) int {
 		fmt.Fprintf(os.Stderr, "usage: cuck hook <%s>\n", strings.Join(shellhook.Shells, "|"))
 		return 2
 	}
-	s, err := shellhook.Script(args[0], hookAgents(cfg))
+	s, err := shellhook.Script(args[0], hookAgents(cfg), selfPath())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "cuck:", err)
 		return 2
@@ -56,7 +58,7 @@ func cmdAgents(_ []string, cfg config.Config) int {
 	fmt.Println()
 	any := false
 	for _, system := range []bool{false, true} {
-		for _, t := range shellhook.Targets(system) {
+		for _, t := range shellhook.Leftovers(system) {
 			if t.Installed() {
 				fmt.Printf("Hook installed in %s (%s)\n", tildify(t.Path), t.Shell)
 				any = true
@@ -112,7 +114,7 @@ func cmdSetup(args []string, cfg config.Config) int {
 		refreshed := false
 		for _, t := range targets {
 			if t.Installed() {
-				_ = t.Install() // upgrade in place
+				_ = t.Install(selfPath()) // upgrade in place
 				refreshed = true
 			}
 		}
@@ -151,7 +153,7 @@ func cmdSetup(args []string, cfg config.Config) int {
 	failed := 0
 	fmt.Fprintln(out)
 	for _, t := range targets {
-		if err := t.Install(); err != nil {
+		if err := t.Install(selfPath()); err != nil {
 			fmt.Fprintf(out, "  x %s: %v\n", tildify(t.Path), err)
 			failed++
 			continue
@@ -165,8 +167,17 @@ func cmdSetup(args []string, cfg config.Config) int {
 		fmt.Fprintln(out, "\n  Couldn't write the system files. Try `sudo cuck setup --system`, or `cuck setup --user`.")
 		return 1
 	}
-	fmt.Fprintln(out, "\n  Welcome to the chair. Open a new terminal and type `claude` (or any agent).")
-	fmt.Fprintln(out, "  Skip it once with `command claude`. Undo everything with `cuck uninstall`.")
+	agent := hookAgents(cfg)[0]
+	if !sys {
+		verify(out, targets, agent)
+	}
+	fmt.Fprintln(out, "\n  Welcome to the chair.")
+	if hint := activateHint(userShell(targets)); hint != "" {
+		fmt.Fprintf(out, "  This terminal doesn't know yet: run %s or open a new terminal, then type `%s`.\n", bold(hint), agent)
+	} else {
+		fmt.Fprintf(out, "  Open a new terminal and type `%s`.\n", agent)
+	}
+	fmt.Fprintln(out, "  Watch it right now with "+bold("cuck demo")+". Skip it once with `command "+agent+"`. Undo with `cuck uninstall`.")
 	return 0
 }
 
@@ -224,7 +235,7 @@ func cmdUninstall(args []string, _ config.Config) int {
 	}
 	removed, failed := 0, 0
 	for _, system := range []bool{false, true} {
-		for _, t := range shellhook.Targets(system) {
+		for _, t := range shellhook.Leftovers(system) {
 			if !t.Installed() {
 				continue
 			}
@@ -238,6 +249,16 @@ func cmdUninstall(args []string, _ config.Config) int {
 			removed++
 			if !*quiet {
 				fmt.Printf("  - %s\n", tildify(t.Path))
+			}
+		}
+	}
+	// The extracted sound clips.
+	if dir, err := os.UserCacheDir(); err == nil {
+		cache := filepath.Join(dir, "cuck-code")
+		if _, err := os.Stat(cache); err == nil && os.RemoveAll(cache) == nil {
+			removed++
+			if !*quiet {
+				fmt.Printf("  - %s\n", tildify(cache))
 			}
 		}
 	}
