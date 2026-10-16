@@ -79,12 +79,15 @@ func TestString(t *testing.T) {
 }
 
 func TestName(t *testing.T) {
-	for line, want := range map[string]string{
+	names := map[string]string{
 		"claude --x":                     "claude",
-		"FOO=1 BAR=2 claude":             "claude",
 		"~/.claude/local/claude":         "claude",
 		"nocorrect /opt/bin/codex | cat": "codex",
-	} {
+	}
+	if runtime.GOOS != "windows" { // cmd.exe has no FOO=1 prefix
+		names["FOO=1 BAR=2 claude"] = "claude"
+	}
+	for line, want := range names {
 		c, err := Parse(line, nil)
 		if err != nil {
 			t.Fatal(err)
