@@ -30,7 +30,7 @@ There are no dependencies. It's one small binary you install and forget about.
 npm install -g cuck-code
 ```
 
-At the end of the install it asks **"Do you really want to get cucked?"** If you say yes, typing `claude`, `codex`, `cursor-agent`, `gemini` or any other supported agent plays the intro first.
+At the end of the install it asks **"Do you really want to get cucked?"** If you say yes, typing `claude`, `codex`, `cursor-agent`, `gemini` or any other supported agent plays the intro first. Not asked (pnpm, Bun, Yarn)? Run `cuck setup`.
 
 No npm:
 

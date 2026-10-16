@@ -18,6 +18,18 @@ func TestParse(t *testing.T) {
 		{`my-agent --msg "hello world" 'it''s'`, nil, []string{"my-agent", "--msg", "hello world", "its"}, ""},
 		{"claude | tee log", nil, nil, "claude | tee log"},
 		{"FOO=1 codex $HOME", nil, nil, "FOO=1 codex $HOME"},
+		// Forms that shell aliases take.
+		{"nocorrect claude", []string{"-c"}, []string{"claude", "-c"}, ""},
+		{"command  noglob claude --x", nil, []string{"claude", "--x"}, ""},
+		{"~/.claude/local/claude", nil, nil, "~/.claude/local/claude"},
+	}
+	if runtime.GOOS != "windows" {
+		tests = append(tests, struct {
+			line  string
+			extra []string
+			argv  []string
+			shell string
+		}{"FOO=1 claude --x", []string{"-c"}, nil, "FOO=1 claude --x"})
 	}
 	for _, tt := range tests {
 		c, err := Parse(tt.line, tt.extra)
@@ -63,5 +75,22 @@ func TestString(t *testing.T) {
 	c, _ := Parse("claude", []string{"--append-system-prompt", "be nice"})
 	if got, want := c.String(), "claude --append-system-prompt 'be nice'"; got != want {
 		t.Errorf("String() = %q, want %q", got, want)
+	}
+}
+
+func TestName(t *testing.T) {
+	for line, want := range map[string]string{
+		"claude --x":                     "claude",
+		"FOO=1 BAR=2 claude":             "claude",
+		"~/.claude/local/claude":         "claude",
+		"nocorrect /opt/bin/codex | cat": "codex",
+	} {
+		c, err := Parse(line, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := c.Name(); got != want {
+			t.Errorf("Parse(%q).Name() = %q, want %q", line, got, want)
+		}
 	}
 }

@@ -150,11 +150,11 @@ func run(args []string) int {
 
 	if shouldAnimate(*noAnim, cfg) && !(*hooked && shellhook.SkipIntro(rest)) {
 		opts, err := animationOptions(cfg, *durationMS, *fps, *colorFlag)
-		opts.Sound = sound.New(wantSound(cfg, *soundOn, *soundOff), expandHome(cfg.SoundFile))
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "cuck:", err)
 			return 2
 		}
+		opts.Sound = sound.New(wantSound(cfg, *soundOn, *soundOff), expandHome(cfg.SoundFile))
 		opts.Agent = cmd.Name()
 		opts.Tagline = "-> " + cmd.Name()
 		switch err := animation.Play(opts); {

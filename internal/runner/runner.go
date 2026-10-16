@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 )
 
@@ -32,6 +33,7 @@ func Parse(line string, extra []string) (*Command, error) {
 	if line == "" {
 		return nil, errors.New("empty agent command")
 	}
+	line = stripPrecommands(line)
 	if strings.ContainsAny(line, shellChars) {
 		return &Command{Shell: line, Extra: extra}, nil
 	}
@@ -39,7 +41,39 @@ func Parse(line string, extra []string) (*Command, error) {
 	if err != nil {
 		return nil, err
 	}
+	if isAssignment(words[0]) && runtime.GOOS != "windows" {
+		// FOO=1 claude, as in alias claude='FOO=1 claude': the shell sets the variable.
+		return &Command{Shell: line, Extra: extra}, nil
+	}
 	return &Command{Argv: append(words, extra...)}, nil
+}
+
+// precommands are shell keywords that can lead an alias (alias
+// claude='nocorrect claude') and mean nothing once cuck runs the command.
+var precommands = []string{"command", "nocorrect", "noglob", "exec"}
+
+func stripPrecommands(line string) string {
+	for {
+		w, rest, ok := strings.Cut(line, " ")
+		if !ok || !slices.Contains(precommands, w) {
+			return line
+		}
+		line = strings.TrimLeft(rest, " \t")
+	}
+}
+
+// isAssignment reports whether w is a shell variable assignment (NAME=value).
+func isAssignment(w string) bool {
+	name, _, ok := strings.Cut(w, "=")
+	if !ok || name == "" || name[0] >= '0' && name[0] <= '9' {
+		return false
+	}
+	for _, r := range name {
+		if r != '_' && !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') && !(r >= '0' && r <= '9') {
+			return false
+		}
+	}
+	return true
 }
 
 // Split breaks a command line into words, honouring single and double quotes.
@@ -119,8 +153,10 @@ func (c *Command) Check() error {
 // Name is a short display name for the agent.
 func (c *Command) Name() string {
 	if c.Shell != "" {
-		if w := strings.Fields(c.Shell); len(w) > 0 {
-			return filepath.Base(w[0])
+		for _, w := range strings.Fields(c.Shell) {
+			if !isAssignment(w) {
+				return filepath.Base(w)
+			}
 		}
 		return "sh"
 	}

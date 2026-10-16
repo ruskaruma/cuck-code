@@ -73,24 +73,40 @@ var Shells = []string{"bash", "zsh", "fish", "powershell"}
 // Each wrapper:
 //   - takes over an existing alias for the agent instead of losing to it
 //     (Claude Code's installer adds `alias claude=~/.claude/local/claude`),
-//     and launches the agent through that alias's target;
+//     and launches the agent through that alias's target. Aliases defined
+//     later in the startup files are taken over at the first prompt;
 //   - falls back to the plain agent if cuck has since been uninstalled.
 func Script(shell string, agents []string, self string) (string, error) {
 	var b strings.Builder
 	switch shell {
 	case "bash", "zsh":
 		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: command <agent>\n")
-		fmt.Fprintf(&b, "__cuck_bin() { command -v cuck 2>/dev/null || { [ -x %s ] && printf '%%s\\n' %s; }; }\n", shQuote(self), shQuote(self))
-		aliasOf, isAlias := `${BASH_ALIASES[%s]}`, `[ -n "${BASH_ALIASES[%s]+x}" ]`
-		run := `eval "command $%s \"\$@\""`
-		if shell == "zsh" {
-			aliasOf, isAlias = `${aliases[%s]}`, `(( ${+aliases[%s]} ))`
+		// command -v can name a hashed cuck that has since been deleted, hence the -x checks.
+		fmt.Fprintf(&b, "__cuck_bin() { local c; c=$(command -v cuck 2>/dev/null); [ -x \"$c\" ] || c=%s; [ -x \"$c\" ] && printf '%%s\\n' \"$c\"; }\n", shQuote(self))
+		// The alias builtin (not BASH_ALIASES, which bash 3.2 on macOS lacks)
+		// prints the alias already quoted, ready for eval.
+		b.WriteString("__cuck_take() {\n  local a\n")
+		for _, a := range agents {
+			fmt.Fprintf(&b, "  if alias %s >/dev/null 2>&1; then a=$(alias %s); eval \"__cuck_t_%s=${a#*=}\"; unalias %s; fi\n", a, a, varName(a), a)
 		}
+		b.WriteString("}\n")
 		for _, a := range agents {
 			v := "__cuck_t_" + varName(a)
 			fmt.Fprintf(&b, "%s=${%s:-%s}\n", v, v, a)
-			fmt.Fprintf(&b, "if "+isAlias+"; then %s="+aliasOf+"; unalias %s; fi\n", a, v, a, a)
-			fmt.Fprintf(&b, "function %s { local c; c=$(__cuck_bin); if [ -n \"$c\" ]; then \"$c\" --hooked --agent \"$%s\" -- \"$@\"; else "+run+"; fi; }\n", a, v, v)
+		}
+		b.WriteString("__cuck_take\n")
+		for _, a := range agents {
+			v := "__cuck_t_" + varName(a)
+			// Without cuck, run the alias target in a subshell where the
+			// wrapper is gone, so `claude` can't call itself.
+			fmt.Fprintf(&b, "function %s { local c; c=$(__cuck_bin); if [ -n \"$c\" ]; then \"$c\" --hooked --agent \"$%s\" -- \"$@\"; else (unset -f %s; eval \"$%s \\\"\\$@\\\"\"); fi; }\n", a, v, a, v)
+		}
+		if shell == "zsh" {
+			b.WriteString("__cuck_first() { __cuck_take; precmd_functions=(${precmd_functions:#__cuck_first}); }\n")
+			b.WriteString("precmd_functions=(${precmd_functions:#__cuck_first} __cuck_first)\n")
+		} else {
+			b.WriteString("__cuck_first() { __cuck_take; PROMPT_COMMAND=${PROMPT_COMMAND//__cuck_first;/}; }\n")
+			b.WriteString("PROMPT_COMMAND=\"__cuck_first;${PROMPT_COMMAND//__cuck_first;/}\"\n")
 		}
 	case "fish":
 		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: command <agent>\n")

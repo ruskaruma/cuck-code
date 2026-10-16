@@ -247,9 +247,9 @@ To use your own clip for the voice line, point `"sound_file"` at it. WAV works e
 
 ## Troubleshooting
 
-**Typing `claude` doesn't play the intro after setup.** Run `cuck doctor`: it opens a fresh shell behind the scenes and tells you exactly what `claude` resolves to and why. The usual cause is the terminal you installed from: it read its startup files before the hook existed, so run `source ~/.bashrc` / `source ~/.zshrc` there, or open a new terminal. Aliases (like the `alias claude=~/.claude/local/claude` Claude Code's installer adds) are handled automatically. If something redefines the agent *after* the cuck-code block, move the block to the end of the file.
+**Typing `claude` doesn't play the intro after setup.** Run `cuck doctor`: it opens a fresh shell behind the scenes and tells you exactly what `claude` resolves to and why. The usual cause is the terminal you installed from: it read its startup files before the hook existed, so run `source ~/.bashrc` / `source ~/.zshrc` there, or open a new terminal. Aliases (like the `alias claude=~/.claude/local/claude` Claude Code's installer adds) are handled automatically, even ones defined after the cuck-code block or in a file read later. If a shell *function* named after the agent is defined after the block, move the block to the end of the file.
 
-**npm never asked me the question.** npm can't prompt when there's no terminal (CI, some IDE terminals). pnpm and Bun don't run install scripts unless you approve them. In either case, run `cuck setup` yourself.
+**npm never asked me the question.** npm can't prompt when there's no terminal (CI, some IDE terminals). pnpm, Bun and Yarn don't run install scripts unless you approve them, and neither does npm with `--ignore-scripts`. In either case, run `cuck setup` yourself.
 
 **`the <platform> binary is missing`.** The install was interrupted or modified. Reinstall with `npm install -g cuck-code`.
 

@@ -2,7 +2,9 @@ package shellhook
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -107,5 +109,80 @@ func TestInstallOwnFile(t *testing.T) {
 	}
 	if err := tg.Remove(); err != nil {
 		t.Fatal("second remove should be a no-op", err)
+	}
+}
+
+// TestHookInRealShells types commands into real interactive bash and zsh
+// sessions with the hook loaded, the way a person would at a prompt. On macOS
+// this covers bash 3.2, which lacks much of modern bash.
+func TestHookInRealShells(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the bash and zsh hooks are tested on Unix")
+	}
+	for _, sh := range []string{"bash", "zsh"} {
+		if _, err := exec.LookPath(sh); err != nil {
+			t.Logf("%s isn't installed; skipping it", sh)
+			continue
+		}
+		t.Run(sh, func(t *testing.T) { testShell(t, sh) })
+	}
+}
+
+func testShell(t *testing.T, sh string) {
+	cases := []struct{ name, before, after, typed, want string }{
+		{"plain", "", "", "claude -x", "cuck --hooked --agent claude -- -x"},
+		{"dashed name", "", "", "kiro-cli 'two words'", "cuck --hooked --agent kiro-cli -- two words"},
+		{"alias above the hook", "alias claude=LOCAL", "", "claude -x", "cuck --hooked --agent LOCAL -- -x"},
+		{"alias below the hook", "", "alias claude=LOCAL", "claude -x", "cuck --hooked --agent LOCAL -- -x"},
+		{"alias setting a variable", "alias claude='FOO=1 claude'", "", "claude -x", "cuck --hooked --agent FOO=1 claude -- -x"},
+		{"hook loaded twice", "alias claude=LOCAL", `eval "$(cat HOOK)"`, "claude -x", "cuck --hooked --agent LOCAL -- -x"},
+		{"bypass", "", "", "command claude -x", "claude -x"},
+		{"cuck uninstalled", "", "", "rm CUCK; claude -x", "claude -x"},
+		{"cuck uninstalled, alias", "alias claude='FOO=1 LOCAL'", "", "rm CUCK; claude -x", "local claude -x FOO=1"},
+	}
+	for _, c := range cases {
+		dir := t.TempDir()
+		bin, local := filepath.Join(dir, "bin"), filepath.Join(dir, "local")
+		write := func(path, body string, mode os.FileMode) {
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(body), mode); err != nil {
+				t.Fatal(err)
+			}
+		}
+		cuck := filepath.Join(dir, "cuck", "cuck") // off PATH: only the remembered path finds it
+		write(cuck, "#!/bin/sh\necho \"cuck $*\"\n", 0o755)
+		write(filepath.Join(bin, "claude"), "#!/bin/sh\necho \"claude $*${FOO:+ FOO=$FOO}\"\n", 0o755)
+		write(filepath.Join(bin, "kiro-cli"), "#!/bin/sh\necho \"kiro-cli $*\"\n", 0o755)
+		write(filepath.Join(local, "claude"), "#!/bin/sh\necho \"local claude $*${FOO:+ FOO=$FOO}\"\n", 0o755)
+		hook, err := Script(sh, []string{"claude", "kiro-cli"}, cuck)
+		if err != nil {
+			t.Fatal(err)
+		}
+		hookFile := filepath.Join(dir, "hook")
+		write(hookFile, hook, 0o644)
+		r := strings.NewReplacer("LOCAL", filepath.Join(local, "claude"), "HOOK", hookFile, "CUCK", cuck)
+		rc := filepath.Join(dir, ".zshrc")
+		write(rc, r.Replace(c.before)+"\neval \"$(cat "+hookFile+")\"\n"+r.Replace(c.after)+"\n", 0o644)
+
+		args := []string{"-i"}
+		if sh == "bash" {
+			args = []string{"--rcfile", rc, "-i"}
+		}
+		cmd := exec.Command(sh, args...)
+		cmd.Env = []string{"HOME=" + dir, "ZDOTDIR=" + dir, "PATH=" + bin + ":/usr/bin:/bin", "TERM=dumb"}
+		cmd.Stdin = strings.NewReader(r.Replace(c.typed) + "\n")
+		var stdout, stderr strings.Builder
+		cmd.Stdout, cmd.Stderr = &stdout, &stderr
+		_ = cmd.Run()
+		if got, want := strings.TrimSpace(stdout.String()), r.Replace(c.want); got != want {
+			t.Errorf("%s: typing %q printed %q, want %q\nstderr: %s", c.name, c.typed, got, want, stderr.String())
+		}
+		for _, bad := range []string{"not found", "parse error", "syntax error", "defining function", "No such file"} {
+			if strings.Contains(stderr.String(), bad) {
+				t.Errorf("%s: shell complained (%s):\n%s", c.name, bad, stderr.String())
+			}
+		}
 	}
 }

@@ -33,12 +33,14 @@ func selfPath() string {
 }
 
 // liveCheck starts a fresh interactive shell, exactly as a new terminal
-// would, and reports what typing agent resolves to there: "function" means
-// the hook works. It never touches the user's terminal.
+// would, and reports what typing agent resolves to at its first prompt:
+// "function" means the hook works. It never touches the user's terminal.
 func liveCheck(shell, agent string) (string, error) {
+	// -c never shows a prompt, so do the hook's first-prompt step by hand.
+	first := `__cuck_first >/dev/null 2>&1; `
 	probe := map[string]string{
-		"bash": `printf '\nCUCKCHECK:%s\n' "$(type -t ` + agent + `)"`,
-		"zsh":  `printf '\nCUCKCHECK:%s\n' "$(whence -w ` + agent + ` 2>/dev/null)"`,
+		"bash": first + `printf '\nCUCKCHECK:%s\n' "$(type -t ` + agent + `)"`,
+		"zsh":  first + `printf '\nCUCKCHECK:%s\n' "$(whence -w ` + agent + ` 2>/dev/null)"`,
 	}[shell]
 	if probe == "" {
 		return "", fmt.Errorf("can't check %s automatically", shell)
@@ -220,7 +222,7 @@ func cmdDoctor(_ []string, cfg config.Config) int {
 				say(false, "a new %s terminal runs plain `%s` (`type` says: %s): something in your startup files redefines it after the hook. Make sure the cuck-code block is the last thing in %s", t.Shell, agents[0], kind, tildify(t.Path))
 			}
 		}
-		if sh := filepath.Base(os.Getenv("SHELL")); sh != "" && !seen[sh] && sh != "fish" && sh != "pwsh" && sh != "powershell" {
+		if sh := filepath.Base(os.Getenv("SHELL")); os.Getenv("SHELL") != "" && !seen[sh] && sh != "fish" && sh != "pwsh" && sh != "powershell" {
 			fmt.Printf("  %s your login shell is %s, which cuck doesn't hook (bash, zsh, fish and PowerShell are supported)\n", mark(false), sh)
 			problems++
 		}
