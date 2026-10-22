@@ -252,9 +252,19 @@ The intro plays before Claude Code starts. The cuck-code **mod** plays inside it
 
 1. **You send a prompt.** She walks in through the door, and a sock goes on the knob.
 2. **Claude works.** The door rattles in time with the bed, hearts drift out, and you hear them through the door: creaks, the headboard, her lines ("oh yeahh", "¡sí, papi!", "don't stop", "oh my god... Claude!") and now and then his ("who got the good d?"). Claude Code's spinner says things like "Waiting outside" instead of "Sauteing".
-3. **Claude finishes.** He walks out, turns to you with shiny eyes, winks and says, slowly, "who got... the good... d?". The strip fades and the closing line reads "Cucked for 32s" instead of "Baked for 32s".
+3. **Claude needs your permission.** He knocks, leans out of the door and asks you: "can I get a yes, papi?", in the strip and as a line under Claude Code's permission dialog. Say yes and he goes back in; say no and the door slams.
+4. **Claude finishes.** He walks out, turns to you with shiny eyes, winks and says, slowly, "who got... the good... d?". The strip fades and the closing line reads "Cucked for 32s" instead of "Baked for 32s".
 
-**`/cuck-quiet`** mutes it (and unmutes it); the setting is kept between sessions. Narrow terminals (under 40 columns), the VS Code extension and the desktop app show the captions without the pixel strip.
+**`/cuck`** sets it up; each setting is kept between sessions:
+
+| Command | What it does |
+|---|---|
+| `/cuck quiet` | Mutes the sound, or brings it back. `/cuck-quiet` does the same. |
+| `/cuck sfw` | Safe for work: the same scene with clean lines ("ship it!", "who got the good code?"), typing instead of the bed, a do-not-disturb sign instead of the sock, and "Shipped for 32s". |
+| `/cuck meetings on\|off` | On (the default), it goes quiet and safe for work by itself while you're on a call: while your microphone is in use on Linux (PulseAudio or PipeWire) and Windows, and during a Zoom or FaceTime call on macOS. A call in a browser on macOS can't be seen, so use `/cuck sfw` for that. |
+| `/cuck skin auto\|halloween\|off` | Costumes. `auto` (the default) puts them on for the season: from Oct 24 to Nov 1 she's a witch, he's a vampire with red eyes, there's a jack-o'-lantern by the door and he asks "who got the good bite?". |
+
+Narrow terminals (under 40 columns), the VS Code extension and the desktop app show the captions without the pixel strip.
 
 **Installing.** `cuck setup` installs it when Claude Code is on your PATH, and an npm upgrade offers it once to people who set up an earlier version. On its own, at Claude Code's prompt:
 
@@ -264,7 +274,7 @@ The intro plays before Claude Code starts. The cuck-code **mod** plays inside it
 
 or from a shell: `claude plugin install cuck-code --marketplace ruskaruma/cuck-code`. It needs Claude Code 2.1.275 or later. `cuck uninstall` or `claude plugin uninstall cuck-code@cuck-code` removes it.
 
-**How it's built.** The mod lives in [`packaging/claude-code/`](../packaging/claude-code) and this repository is its marketplace ([`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json)). It's a Claude Code hooks module: `hooks/register.tsx` reacts to prompts and finished turns, rewrites the spinner and the closing line, and draws `hooks/scene.ts`'s pixel art into the band above the prompt at 30 frames a second. Sounds play through `afplay`, PipeWire, PulseAudio or ALSA. The voices were made with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0) and the bed sounds are synthesised; `sounds/gen.py` regenerates them all. Run its tests with `claude plugin test packaging/claude-code`, and try local changes with `claude --plugin-dir packaging/claude-code`. Users get a new version of the mod when its `version` in `.claude-plugin/plugin.json` goes up.
+**How it's built.** The mod lives in [`packaging/claude-code/`](../packaging/claude-code) and this repository is its marketplace ([`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json)). It's a Claude Code hooks module: `hooks/register.tsx` reacts to prompts, permission checks and finished turns, rewrites the spinner and the closing line, picks its lines from `hooks/lines.ts`, and draws `hooks/scene.ts`'s pixel art into the band above the prompt at 30 frames a second. Sounds play through `afplay` on macOS, PipeWire, PulseAudio or ALSA on Linux, and PowerShell's sound player on Windows. The voices were made with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0) and the other sounds are synthesised; `sounds/gen.py` regenerates them, or just the clips you name. Run its tests with `claude plugin test packaging/claude-code`, and try local changes with `claude --plugin-dir packaging/claude-code`. Users get a new version of the mod when its `version` in `.claude-plugin/plugin.json` goes up.
 
 ## Troubleshooting
 

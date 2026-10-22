@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 const BAND = {
@@ -8,32 +9,58 @@ const BAND = {
   props: { hasSurvey: false, isWorking: true, maxRows: 20, bodyColumns: 100, scroll: { offset: 0, bodyRows: 19 }, view: {} },
 } as const
 
+const SESSION = { cwd: '/', surface: 'terminal', isInteractive: true } as const
 const PROMPT = { text: 'fix the login bug', wait: false, origin: { kind: 'composer' } } as const
 const TURN = { answer: 'done', durationMs: 32000, turnId: 't1' }
-const QUIET = { command: 'cuck-quiet', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as const
+const DONE = { ...TURN, isAborted: false, reason: 'answer' } as const
+const command = (name: string, args = '') =>
+  ({ command: name, args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } }) as const
 
-// The engine beneath: it takes prompts and turns, runs commands, and draws
-// its own band. Every sound the mod plays is recorded.
-function engine(on: On): string[] {
-  const played: string[] = []
+// The engine beneath: it takes prompts and turns, runs commands and tools,
+// and draws its own band. It records every sound the mod plays, every line
+// it puts under a dialog, and answers the check for a call in progress with
+// `onCall`.
+function engine(on: On, { onCall = false, os = 'Linux', env = {} } = {}) {
+  mock.env(on, env)
+  const heard = { sounds: [] as string[], players: [] as string[], notices: [] as string[] }
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.complete', () => ({ text: 'done' }))
-  on('command.register', () => ({ value: { command: 'cuck-quiet' } }))
+  on('command.register', () => ({ value: { command: 'cuck' } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('process.run', (_, e) => {
-    played.push((e.argv.at(-1) ?? '').replace(/^.*\//, '').replace('.wav', ''))
-    return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    const wav = /([\w-]+)\.wav/.exec(e.argv.at(-1) ?? '')
+    if (wav?.[1]) {
+      heard.sounds.push(wav[1])
+      heard.players.push(e.argv[0] ?? '')
+    }
+    const exitCode = e.argv[0] === 'uname' || wav || onCall ? 0 : 1
+    const stdout = e.argv[0] === 'uname' ? `${os}\n` : ''
+    return { value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  on('ui.notice', (_, e) => {
+    heard.notices.push(e.text ?? '')
+    return { value: undefined }
   })
   on('ui.render', ($, e) => {
     const { Text } = $.ui.resolve(e)
     return <Text>engine</Text>
   })
-  return played
+  return heard
 }
 
-test('she walks in, they carry on while Claude works, she walks out, the band clears', async ($, on) => {
+// What the band says now, as a surface that draws text alone shows it.
+const caption = async ($: Engine) => {
+  const band = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const text = (await band.find({ type: 'Text' }))?.text
+  await band.unmount()
+  return text
+}
+
+test('she walks in, they carry on while Claude works, he walks out and winks, the band clears', async ($, on) => {
   const clock = mock.clock(on, { now: 1000 })
-  const played = engine(on)
+  mock.store(on)
+  const heard = engine(on)
+  await $.session.start(SESSION)
 
   await $.prompt.submit(PROMPT)
   const first = await $.ui.mount({ ...BAND, surface: 'terminal' })
@@ -45,18 +72,16 @@ test('she walks in, they carry on while Claude works, she walks out, the band cl
   const busy = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await busy.find({ key: 'strip' })).toBeDefined()
   await busy.unmount()
-  expect(played.some(s => s.startsWith('creak'))).toBe(true)
-  expect(played.some(s => s.startsWith('her_') || s.startsWith('him_'))).toBe(true)
+  expect(heard.sounds.some(s => s.startsWith('creak'))).toBe(true)
+  expect(heard.sounds.some(s => s.startsWith('her_') || s.startsWith('him_'))).toBe(true)
 
-  await $.turn.complete({ ...TURN, isAborted: false, reason: 'answer' })
-  expect(played.at(-1)).toBe('ding')
-  const leaving = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await leaving.find({ key: 'strip' })).toBeDefined()
-  await leaving.unmount()
+  await $.turn.complete(DONE)
+  expect(heard.sounds.at(-1)).toBe('ding')
 
   // He turns to you, winks, and says it.
   await clock.advance(2200)
-  expect(played.at(-1)).toBe('him_gooddee')
+  expect(heard.sounds.at(-1)).toBe('him_gooddee')
+  expect(await caption($)).toBe('claude: who got the good d?')
 
   await clock.advance(3200)
   const after = await $.ui.mount({ ...BAND, surface: 'terminal' })
@@ -67,22 +92,24 @@ test('she walks in, they carry on while Claude works, she walks out, the band cl
 
 test('narrow terminals and other surfaces get the caption alone', async ($, on) => {
   mock.clock(on, { now: 1000 })
+  mock.store(on)
   engine(on)
+  await $.session.start(SESSION)
   await $.prompt.submit(PROMPT)
   const narrow = await $.ui.mount({ ...BAND, surface: 'terminal', props: { ...BAND.props, bodyColumns: 30 } })
   expect(await narrow.find({ type: 'Text', text: /claude|seat|wait|door/ })).toBeDefined()
   await narrow.unmount()
-  const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
-  expect(await desktop.find({ type: 'Text', text: /claude|seat|wait|door/ })).toBeDefined()
-  await desktop.unmount()
+  expect(await caption($)).toMatch(/claude|seat|wait|door/)
 })
 
 test('an interrupt clears the band; subagents and empty prompts play nothing', async ($, on) => {
   const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
   engine(on)
+  await $.session.start(SESSION)
 
   await $.prompt.submit({ ...PROMPT, text: '   ' })
-  await $.turn.complete({ ...TURN, isAborted: false, reason: 'answer', agentId: 'sub' })
+  await $.turn.complete({ ...DONE, agentId: 'sub' })
   const idle = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await idle.find({ key: 'strip' })).toBeUndefined()
   await idle.unmount()
@@ -95,21 +122,153 @@ test('an interrupt clears the band; subagents and empty prompts play nothing', a
   await stopped.unmount()
 })
 
-test('/cuck-quiet mutes everything, and unmutes', async ($, on) => {
+test('/cuck quiet and /cuck-quiet mute everything, and unmute', async ($, on) => {
   const clock = mock.clock(on, { now: 1000 })
   mock.store(on)
-  const played = engine(on)
-  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const heard = engine(on)
+  await $.session.start(SESSION)
 
-  const muted = await $.command.run(QUIET)
-  expect(muted.text).toMatch(/muted/)
+  expect((await $.command.run(command('cuck', 'quiet'))).text).toMatch(/muted/)
   await $.prompt.submit(PROMPT)
   await clock.advance(15000)
-  await $.turn.complete({ ...TURN, isAborted: false, reason: 'answer' })
-  expect(played).toEqual([])
+  await $.turn.complete(DONE)
+  await clock.advance(5000)
+  expect(heard.sounds).toEqual([])
 
-  const back = await $.command.run(QUIET)
-  expect(back.text).toMatch(/back on/)
+  expect((await $.command.run(command('cuck-quiet'))).text).toMatch(/back on/)
+  expect((await $.command.run(command('cuck'))).text).toMatch(/\/cuck sfw/)
+})
+
+test('when Claude needs a yes he knocks, asks under the dialog, and goes back in when you give it', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  let decision: 'allow' | 'ask' = 'ask'
+  on('tool.check', () => ({ decision }))
+  on('tool.call', () => ({ result: { stdout: '', stderr: '', interrupted: false } }))
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(5000)
+
+  await $.tool.check({ tool: 'Bash', input: { command: 'rm -rf build' }, tool_use_id: 'tu1', approver: 'person' })
+  await clock.advance(1500)
+  expect(heard.sounds).toContain('knock')
+  expect(heard.sounds.at(-1)).toBe('him_yespapi')
+  expect(heard.notices).toContain('claude: can I get a yes, papi?')
+  expect(await caption($)).toBe('claude: can I get a yes, papi?')
+
+  decision = 'allow' // you said yes
+  await $.tool.call({ tool: 'Bash', command: 'rm -rf build', tool_use_id: 'tu1' })
+  await clock.advance(100)
+  expect(await caption($)).toMatch(/yes|consent|back in/)
+})
+
+test('turn him down and the door slams', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  on('tool.check', () => ({ decision: 'ask' }))
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(5000)
+
+  await $.tool.check({ tool: 'Edit', input: { file_path: '/a' }, tool_use_id: 'tu2', approver: 'person' })
+  await clock.advance(1500)
+  await $.turn.complete({ ...TURN, isAborted: true, reason: 'aborted' })
+  await clock.advance(200)
+  expect(heard.sounds.at(-1)).toBe('slam')
+  await clock.advance(1500)
+  expect(await caption($)).toBe('engine')
+})
+
+test('a call the rules allow, or nobody can be asked about, gets no knock', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  let decision: 'allow' | 'ask' = 'allow'
+  on('tool.check', () => ({ decision }))
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(3000)
+  await $.tool.check({ tool: 'Read', input: { file_path: '/a' }, tool_use_id: 'tu3', approver: 'person' })
+  decision = 'ask'
+  await $.tool.check({ tool: 'Bash', input: { command: 'ls' }, tool_use_id: 'tu4', approver: 'host' })
+  await clock.advance(2000)
+  expect(heard.sounds).not.toContain('knock')
+  expect(heard.notices).toEqual([])
+})
+
+test('safe for work: clean lines, typing for a bed, and the good code', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  expect((await $.command.run(command('cuck', 'sfw'))).text).toMatch(/Safe for work/)
+
+  await $.prompt.submit(PROMPT)
+  await clock.advance(20000)
+  expect(heard.sounds.some(s => s.startsWith('clack'))).toBe(true)
+  expect(heard.sounds.filter(s => /^(creak|thump|her_)/.test(s))).toEqual([])
+  await $.turn.complete(DONE)
+  await clock.advance(2200)
+  expect(heard.sounds.at(-1)).toBe('him_goodcode')
+  expect(await caption($)).toBe('claude: who got the good code?')
+})
+
+test('on a call it goes quiet and safe for work by itself, unless told not to', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on, { onCall: true })
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(15000)
+  await $.turn.complete(DONE)
+  await clock.advance(2200)
+  expect(heard.sounds).toEqual([])
+  expect(await caption($)).toBe('claude: who got the good code?')
+
+  await $.command.run(command('cuck', 'meetings off'))
+  await $.prompt.submit(PROMPT)
+  await clock.advance(15000)
+  expect(heard.sounds.length).toBeGreaterThan(0)
+})
+
+test('Halloween: costumes by the calendar, and who got the good bite', async ($, on) => {
+  const clock = mock.clock(on, { now: new Date(2026, 9, 30, 21, 0).getTime() })
+  mock.store(on)
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(3000)
+  await $.turn.complete(DONE)
+  await clock.advance(2200)
+  expect(heard.sounds.at(-1)).toBe('him_goodbite')
+
+  await $.command.run(command('cuck', 'skin off'))
+  await $.prompt.submit(PROMPT)
+  await clock.advance(3000)
+  await $.turn.complete(DONE)
+  await clock.advance(2200)
+  expect(heard.sounds.at(-1)).toBe('him_gooddee')
+})
+
+test('settings are kept for the next session', async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  mock.store(on, { settings: { quiet: false, sfw: true, skin: 'halloween', meetings: false } })
+  engine(on)
+  await $.session.start(SESSION)
+  expect((await $.command.run(command('cuck'))).text).toMatch(/sfw .*\(now on\)[\s\S]*now halloween[\s\S]*\(now off\)/)
+})
+
+test('on Windows the sounds play through PowerShell', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on, { env: { OS: 'Windows_NT' } })
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(5000)
+  expect(heard.players.length).toBeGreaterThan(0)
+  expect(heard.players.every(p => p === 'powershell')).toBe(true)
 })
 
 test('the spinner and the closing line are rewritten', async ($, on) => {

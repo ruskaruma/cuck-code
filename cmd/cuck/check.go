@@ -234,7 +234,7 @@ func cmdDoctor(_ []string, cfg config.Config) int {
 
 	if haveClaudeCode() && !isRoot() {
 		if modInstalled() {
-			say(true, "the Claude Code mod is installed (/cuck-quiet mutes it)")
+			say(true, "the Claude Code mod is installed (/cuck in Claude Code sets it up)")
 		} else {
 			fmt.Printf("  %s the Claude Code mod isn't installed; `cuck setup` adds it\n", mark(true))
 		}

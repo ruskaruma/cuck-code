@@ -260,7 +260,7 @@ func offerMod(cfg config.Config, sys bool) {
 		fmt.Fprintf(out, "\n  x Claude Code mod: %v\n", err)
 		return
 	}
-	fmt.Fprintln(out, "\n  + Claude Code mod. Start a new Claude Code session to see it. /cuck-quiet mutes it.")
+	fmt.Fprintln(out, "\n  + Claude Code mod. Start a new Claude Code session to see it. /cuck there sets it up.")
 }
 
 // cmdUninstall removes the shell hook from every place it was installed.

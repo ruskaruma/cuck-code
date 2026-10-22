@@ -1,6 +1,6 @@
 {
   "name": "cuck-code",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cuck Code inside Claude Code: she walks in when you send a prompt, you hear them through the door while Claude works, and Claude walks out and winks when it's done.",
   "author": { "name": "Ishaan Sinha", "url": "https://github.com/ruskaruma" },
   "homepage": "https://github.com/ruskaruma/cuck-code",
