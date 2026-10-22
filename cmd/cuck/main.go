@@ -15,6 +15,7 @@ import (
 	"github.com/ruskaruma/cuck-code/internal/runner"
 	"github.com/ruskaruma/cuck-code/internal/shellhook"
 	"github.com/ruskaruma/cuck-code/internal/sound"
+	"github.com/ruskaruma/cuck-code/internal/tty"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".
@@ -164,7 +165,7 @@ func run(args []string) int {
 		case errors.Is(err, animation.ErrInterrupted):
 			return 130
 		case errors.Is(err, animation.ErrNotTerminal):
-			// Piped or redirected: nobody to watch, launch straight away.
+			// Output redirected: nobody to watch, launch straight away.
 		case err != nil:
 			fmt.Fprintln(os.Stderr, "cuck: animation:", err)
 		}
@@ -178,7 +179,9 @@ func run(args []string) int {
 }
 
 func shouldAnimate(noAnim bool, cfg config.Config) bool {
-	if noAnim || truthy(os.Getenv("CUCK_NO_ANIMATION")) || os.Getenv("TERM") == "dumb" {
+	// Piped input (echo prompt | agent) means a one-shot, non-interactive run,
+	// and leaves no keyboard to skip the show with.
+	if noAnim || truthy(os.Getenv("CUCK_NO_ANIMATION")) || os.Getenv("TERM") == "dumb" || !tty.IsTerminal(os.Stdin) {
 		return false
 	}
 	return cfg.Animation == nil || *cfg.Animation

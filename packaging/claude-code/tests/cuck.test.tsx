@@ -1,5 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
+import { SPINNER_WORDS } from '../hooks/scene'
 
 const BAND = {
   plugin: 'cuck-code',
@@ -122,7 +123,9 @@ test('the spinner and the closing line are rewritten', async ($, on) => {
     plugin: 'cuck-code', component: 'Spinner', requestId: 'main', surface: 'terminal',
     props: { word: 'Sauteing', message: null, suffix: '…', mode: 'thinking' },
   })
-  expect(await spinner.find({ type: 'Text', text: /chair|seat|work|listen|door|questions/ })).toBeDefined()
+  // The word is picked at random, so check it against the whole list rather
+  // than a pattern that can drift from it.
+  expect(SPINNER_WORDS).toContain((await spinner.find({ type: 'Text' }))?.text)
 
   const line = await $.ui.mount({
     plugin: 'cuck-code', component: 'TurnDuration', requestId: 'done', surface: 'terminal',

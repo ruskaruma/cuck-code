@@ -97,7 +97,7 @@ What it does:
 | `--system` | hook every user on the machine: `/etc/bash.bashrc` or `/etc/bashrc`, `/etc/zsh/zshrc` or `/etc/zshrc`, `/etc/fish/conf.d`, and the all-users PowerShell profile. Needs root/Administrator. This is the default when run as root. |
 | `--user` | only the current user, even when running as root |
 
-Quick commands, like `claude --version`, `codex exec ...`, `claude -p ...`, `gemini mcp ...`, `update`, `login` and `help`, skip the intro and run immediately.
+Quick commands, like `claude --version`, `codex exec ...`, `claude -p ...`, `gemini mcp ...`, `update`, `login` and `help`, skip the intro and run immediately, and so does an agent given piped input, like `cat prompt.md | gemini`.
 
 **Skipping the intro once:**
 
