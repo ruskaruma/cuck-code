@@ -25,6 +25,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/ruskaruma/cuck-code/internal/atomicfile"
 )
 
 // Config is the user's saved preferences.
@@ -109,7 +111,7 @@ func Set(key string, value any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(b, '\n'), 0o644)
+	return atomicfile.Write(path, append(b, '\n'), 0o644)
 }
 
 // Resolve expands an agent alias to its command line. Names that are not

@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/ruskaruma/cuck-code/internal/atomicfile"
 )
 
 const (
@@ -159,7 +161,7 @@ func (t Target) Install(self string) error {
 		return err
 	}
 	if t.Own {
-		return os.WriteFile(t.Path, []byte(t.block(self)), 0o644)
+		return atomicfile.Write(t.Path, []byte(t.block(self)), 0o644)
 	}
 	old, err := os.ReadFile(t.Path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -172,8 +174,8 @@ func (t Target) Install(self string) error {
 	if content != "" {
 		content += "\n"
 	}
-	// WriteFile follows symlinks, so dotfile managers keep working.
-	return os.WriteFile(t.Path, []byte(content+t.block(self)), fileMode(t.Path))
+	// atomicfile follows symlinks, so dotfile managers keep working.
+	return atomicfile.Write(t.Path, []byte(content+t.block(self)), fileMode(t.Path))
 }
 
 // Remove deletes the hook from t. It is a no-op when the hook is absent.
@@ -195,7 +197,7 @@ func (t Target) Remove() error {
 	if !strings.Contains(string(old), beginMarker) {
 		return nil
 	}
-	return os.WriteFile(t.Path, []byte(stripBlock(string(old))), fileMode(t.Path))
+	return atomicfile.Write(t.Path, []byte(stripBlock(string(old))), fileMode(t.Path))
 }
 
 // stripBlock removes the marked block and the blank line Install put before it.

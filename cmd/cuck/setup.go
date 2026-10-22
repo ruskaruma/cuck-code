@@ -115,7 +115,9 @@ func cmdSetup(args []string, cfg config.Config) int {
 		refreshed := false
 		for _, t := range targets {
 			if t.Installed() {
-				_ = t.Install(selfPath()) // upgrade in place
+				if err := t.Install(selfPath()); err != nil { // upgrade in place
+					fmt.Fprintf(os.Stderr, "cuck: couldn't update the hook in %s: %v\n", tildify(t.Path), err)
+				}
 				refreshed = true
 			}
 		}
