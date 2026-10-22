@@ -234,7 +234,13 @@ func animationOptions(cfg config.Config, durationMS, fps int, colorFlag string) 
 		fps = cfg.FPS
 	}
 	if colorFlag == "" {
-		colorFlag = cfg.Color
+		// A bad value in the config only gets a warning, like a broken
+		// config file: it mustn't stop the agent from launching.
+		if _, _, err := animation.ParseColorMode(cfg.Color); err != nil {
+			fmt.Fprintln(os.Stderr, "cuck: ignoring config:", err)
+		} else {
+			colorFlag = cfg.Color
+		}
 	}
 	mode, auto, err := animation.ParseColorMode(colorFlag)
 	if err != nil {

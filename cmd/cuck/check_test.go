@@ -45,3 +45,12 @@ func TestSoundStatusWhenSoundIsOff(t *testing.T) {
 		t.Errorf("CUCK_SOUND=0: soundStatus = %q, want it to say sound is off", got)
 	}
 }
+
+func TestDoctorReportsBadConfigColour(t *testing.T) {
+	if got := configProblems(config.Config{Color: "256color"}); len(got) != 1 || !strings.Contains(got[0], "256color") {
+		t.Errorf("configProblems = %q, want one problem naming the bad colour", got)
+	}
+	if got := configProblems(config.Config{Color: "truecolor"}); len(got) != 0 {
+		t.Errorf("configProblems(truecolor) = %q, want none", got)
+	}
+}

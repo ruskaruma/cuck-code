@@ -68,3 +68,18 @@ func TestIntroOnlyNeverLaunches(t *testing.T) {
 		t.Errorf("run --intro-only = %d, want 0", code)
 	}
 }
+
+// A typo in the config's colour must not stop every agent from launching:
+// a broken config file only gets a warning, and so should a bad value.
+func TestBadConfigColourFallsBackToAuto(t *testing.T) {
+	opts, err := animationOptions(config.Config{Color: "256color"}, 0, 0, "")
+	if err != nil {
+		t.Fatalf("animationOptions with a bad config colour: %v", err)
+	}
+	if !opts.ColorAuto {
+		t.Error("a bad config colour should fall back to auto-detection")
+	}
+	if _, err := animationOptions(config.Config{}, 0, 0, "256color"); err == nil {
+		t.Error("a bad --color flag should still be an error")
+	}
+}

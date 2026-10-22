@@ -235,6 +235,9 @@ func cmdDoctor(_ []string, cfg config.Config) int {
 	}
 
 	fmt.Printf("  %s %s\n", mark(true), soundStatus(cfg))
+	for _, p := range configProblems(cfg) {
+		say(false, "%s", p)
+	}
 	mode := animation.DetectColorMode(os.Getenv, runtime.GOOS == "windows")
 	fmt.Printf("  %s colours: %s\n", mark(true), mode)
 
@@ -299,4 +302,13 @@ func soundStatus(cfg config.Config) string {
 		return "sound plays through " + name
 	}
 	return "no audio player found, so the intro will be silent"
+}
+
+// configProblems lists the config values cuck can't use.
+func configProblems(cfg config.Config) []string {
+	var problems []string
+	if _, _, err := animation.ParseColorMode(cfg.Color); err != nil {
+		problems = append(problems, fmt.Sprintf(`"color" in %s: %v`, tildify(config.Path()), err))
+	}
+	return problems
 }
