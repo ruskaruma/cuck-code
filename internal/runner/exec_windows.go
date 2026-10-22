@@ -12,8 +12,14 @@ import (
 )
 
 // Exec runs the agent as a child with the console attached and returns its
-// exit code. Windows has no exec(2), so cuck waits for the agent and ignores
-// Ctrl+C itself, leaving the agent to handle it.
+// exit code. Windows has no exec(2), so cuck waits for the agent and must
+// survive Ctrl+C, leaving the agent to handle it.
+//
+// signal.Ignore is not enough for that on Windows: it only clears the
+// runtime's interest in the signal, so Go's console handler reports Ctrl+C
+// as unhandled and the default handler calls ExitProcess, killing cuck while
+// the agent keeps running. Only signal.Notify makes the handler report it as
+// handled. Nobody reads the channel; a full buffer still counts as handled.
 func Exec(c *Command) (int, error) {
 	var cmd *exec.Cmd
 	if c.Shell != "" {
@@ -36,8 +42,9 @@ func Exec(c *Command) (int, error) {
 	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 
-	signal.Ignore(os.Interrupt)
-	defer signal.Reset(os.Interrupt)
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt)
+	defer signal.Stop(sig)
 
 	err := cmd.Run()
 	var ee *exec.ExitError
