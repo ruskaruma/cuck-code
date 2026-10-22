@@ -46,13 +46,18 @@ func withFileSizeLimit(t *testing.T, limit uint64, f func() error) error {
 	if err := syscall.Getrlimit(syscall.RLIMIT_FSIZE, &old); err != nil {
 		t.Skip("can't read the file size limit:", err)
 	}
-	lim := syscall.Rlimit{Cur: limit, Max: old.Max}
+	lim := old
+	setLimit(&lim.Cur, limit)
 	if err := syscall.Setrlimit(syscall.RLIMIT_FSIZE, &lim); err != nil {
 		t.Skip("can't set a file size limit:", err)
 	}
 	defer syscall.Setrlimit(syscall.RLIMIT_FSIZE, &old)
 	return f()
 }
+
+// setLimit sets an Rlimit field, which is unsigned on most systems and
+// signed on FreeBSD and DragonFly.
+func setLimit[T int64 | uint64](field *T, v uint64) { *field = T(v) }
 
 // Dotfile managers keep startup files as symlinks: the hook goes into the
 // file the link points to, and the link stays a link.
