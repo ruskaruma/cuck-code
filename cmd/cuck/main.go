@@ -28,7 +28,7 @@ const usage = `cuck - launch a coding agent, from the chair.
 Usage:
   cuck [flags] [agent [agent args...]]
   cuck [flags] --agent <agent> [-- agent args...]
-  cuck setup [--yes] [--system]    make typing any agent's name play the intro
+  cuck setup [--yes] [--system | --user]  make typing any agent's name play the intro
   cuck uninstall                   undo setup
   cuck agents                      list the agents setup wraps
   cuck doctor                      check why typing an agent does or doesn't play the intro

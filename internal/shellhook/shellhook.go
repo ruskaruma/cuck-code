@@ -80,7 +80,7 @@ func Script(shell string, agents []string, self string) (string, error) {
 	var b strings.Builder
 	switch shell {
 	case "bash", "zsh":
-		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: command <agent>\n")
+		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: CUCK_NO_ANIMATION=1 <agent>\n")
 		// Interactive shells only: a script that reads startup files anyway
 		// (bash -l -c, a sourced profile) runs its agents plain. No return
 		// here: this is eval'd inside the user's startup file.
@@ -125,7 +125,7 @@ func Script(shell string, agents []string, self string) (string, error) {
 		}
 		b.WriteString("fi\n")
 	case "fish":
-		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: command <agent>\n")
+		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: CUCK_NO_ANIMATION=1 <agent>\n")
 		// conf.d is read by every fish, scripts included.
 		b.WriteString("if status is-interactive\n")
 		for _, a := range agents {
@@ -134,7 +134,7 @@ func Script(shell string, agents []string, self string) (string, error) {
 		}
 		b.WriteString("end\n")
 	case "powershell", "pwsh":
-		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: & (Get-Command <agent> -CommandType Application)\n")
+		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: $env:CUCK_NO_ANIMATION=1; <agent>; Remove-Item Env:CUCK_NO_ANIMATION\n")
 		fmt.Fprintf(&b, "function global:__cuck_bin { $c = Get-Command cuck -ErrorAction SilentlyContinue | Select-Object -First 1; if ($c) { $c.Source } elseif (Test-Path -LiteralPath %s) { %s } }\n", psQuote(self), psQuote(self))
 		for _, a := range agents {
 			v := "global:__cuck_t_" + varName(a)

@@ -102,9 +102,11 @@ Quick commands, like `claude --version`, `codex exec ...`, `claude -p ...`, `gem
 **Skipping the intro once:**
 
 ```bash
-command claude                                    # bash, zsh, fish
-& (Get-Command claude -CommandType Application)   # PowerShell
+CUCK_NO_ANIMATION=1 claude                                          # bash, zsh, fish
+$env:CUCK_NO_ANIMATION=1; claude; Remove-Item Env:CUCK_NO_ANIMATION  # PowerShell
 ```
+
+This works however the agent is installed. `command claude` also skips the intro, but only for an agent on your PATH: it ignores aliases, so it can't find Claude Code's local install (`alias claude=~/.claude/local/claude`).
 
 While the intro is playing, **any key** jumps to the wink, a second key skips the rest, and **Ctrl+C** cancels without launching the agent.
 

@@ -199,7 +199,7 @@ func cmdSetup(args []string, cfg config.Config) int {
 	} else {
 		fmt.Fprintf(out, "  Open a new terminal and type `%s`.\n", agent)
 	}
-	fmt.Fprintln(out, "  Watch it right now with "+bold("cuck demo")+". Skip it once with `command "+agent+"`. Undo with `cuck uninstall`.")
+	fmt.Fprintln(out, "  Watch it right now with "+bold("cuck demo")+". Skip it once with `"+bypassHint(userShell(targets), agent)+"`. Undo with `cuck uninstall`.")
 	return 0
 }
 
@@ -385,4 +385,14 @@ func tildify(p string) string {
 		return "~" + p[len(home):]
 	}
 	return p
+}
+
+// bypassHint is how to run agent once without the intro in shell. It goes
+// through cuck rather than around it (`command claude`), because an agent
+// installed as an alias isn't on PATH for `command` to find.
+func bypassHint(shell, agent string) string {
+	if shell == "powershell" {
+		return "$env:CUCK_NO_ANIMATION=1; " + agent + "; Remove-Item Env:CUCK_NO_ANIMATION"
+	}
+	return "CUCK_NO_ANIMATION=1 " + agent
 }

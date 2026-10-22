@@ -36,3 +36,20 @@ func TestAskReturnsTheAnswer(t *testing.T) {
 		}
 	}
 }
+
+// `command claude` skips aliases, so it can't reach an agent installed as
+// one (Claude Code's alias claude=~/.claude/local/claude); the environment
+// variable works however the agent is installed.
+func TestBypassHintWorksForAliasInstalls(t *testing.T) {
+	for shell, want := range map[string]string{
+		"bash":       "CUCK_NO_ANIMATION=1 claude",
+		"zsh":        "CUCK_NO_ANIMATION=1 claude",
+		"fish":       "CUCK_NO_ANIMATION=1 claude",
+		"":           "CUCK_NO_ANIMATION=1 claude",
+		"powershell": "$env:CUCK_NO_ANIMATION=1; claude; Remove-Item Env:CUCK_NO_ANIMATION",
+	} {
+		if got := bypassHint(shell, "claude"); got != want {
+			t.Errorf("bypassHint(%q) = %q, want %q", shell, got, want)
+		}
+	}
+}
