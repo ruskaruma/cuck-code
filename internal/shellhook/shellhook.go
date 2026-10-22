@@ -105,7 +105,8 @@ func Script(shell string, agents []string, self string) (string, error) {
 		// loaded twice, is the one that mentions __cuck_bin.
 		b.WriteString("__cuck_keep() {\n  local d\n")
 		for _, a := range agents {
-			fmt.Fprintf(&b, "  d=$(typeset -f %s 2>/dev/null); case $d in ''|*__cuck_bin*) ;; *) eval \"__cuck_user_%s${d#%s}\"; __cuck_f_%s=1 ;; esac\n", a, varName(a), a, varName(a))
+			// Test first, so a new shell only forks for functions that exist.
+			fmt.Fprintf(&b, "  if typeset -f %s >/dev/null 2>&1; then d=$(typeset -f %s); case $d in *__cuck_bin*) ;; *) eval \"__cuck_user_%s${d#%s}\"; __cuck_f_%s=1 ;; esac; fi\n", a, a, varName(a), a, varName(a))
 		}
 		b.WriteString("}\n__cuck_keep\n")
 		for _, a := range agents {
