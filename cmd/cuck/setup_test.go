@@ -53,3 +53,22 @@ func TestBypassHintWorksForAliasInstalls(t *testing.T) {
 		}
 	}
 }
+
+// Installers run setup with stdin redirected (install.sh: </dev/null) and it
+// asks on the terminal directly; nobody may be there (ssh -t, docker run -t),
+// so those runs get the same deadline as npm installs. Typed by hand, setup
+// waits as long as it takes.
+func TestAnswerTimeout(t *testing.T) {
+	for _, c := range []struct {
+		fromNPM, openedConsole bool
+		want                   time.Duration
+	}{
+		{true, true, scriptAnswerTimeout},
+		{false, true, scriptAnswerTimeout},
+		{false, false, 0},
+	} {
+		if got := answerTimeout(c.fromNPM, c.openedConsole); got != c.want {
+			t.Errorf("answerTimeout(npm=%v, console=%v) = %v, want %v", c.fromNPM, c.openedConsole, got, c.want)
+		}
+	}
+}

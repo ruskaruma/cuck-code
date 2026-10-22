@@ -128,10 +128,12 @@ func cmdSetup(args []string, cfg config.Config) int {
 	}
 
 	in, out := io.Reader(os.Stdin), io.Writer(os.Stdout)
+	openedConsole := false
 	if *fromNPM || !tty.IsTerminal(os.Stdin) {
 		cin, cout, err := tty.OpenConsole()
 		switch {
 		case err == nil:
+			openedConsole = true
 			// Left open: a timed-out ask leaves a read pending on it, and on
 			// Windows closing the console waits for that read. The process
 			// exits right after setup anyway.
@@ -149,11 +151,7 @@ func cmdSetup(args []string, cfg config.Config) int {
 	if !*yes {
 		// The answer goes on its own line: package-manager spinners redraw the current one.
 		fmt.Fprint(out, "  "+bold("Do you really want to get cucked?")+" [y/N]\n  > ")
-		var timeout time.Duration
-		if *fromNPM {
-			timeout = npmAnswerTimeout
-		}
-		answer, ok := ask(in, timeout)
+		answer, ok := ask(in, answerTimeout(*fromNPM, openedConsole))
 		if !ok {
 			fmt.Fprintln(out, "\n  No answer, so no. Run `cuck setup` if you change your mind.")
 			return 0
@@ -266,7 +264,7 @@ func offerMod(cfg config.Config, sys bool) {
 	fmt.Fprint(out, "\n  "+bold("New in Cuck Code:")+" it plays inside Claude Code too. She walks in when you send a prompt,\n"+
 		"  you hear them through the door while Claude works, and Claude walks out and winks when it's done.\n\n"+
 		"  Add it to Claude Code? [Y/n]\n  > ")
-	answer, ok := ask(in, npmAnswerTimeout)
+	answer, ok := ask(in, scriptAnswerTimeout)
 	if !ok {
 		// Nobody there: don't install it unasked, and don't record a no either.
 		fmt.Fprintln(out, "\n  No answer. `cuck setup` adds it any time.")
@@ -284,10 +282,10 @@ func offerMod(cfg config.Config, sys bool) {
 	fmt.Fprintln(out, "\n  + Claude Code mod. Start a new Claude Code session to see it. /cuck-quiet mutes it.")
 }
 
-// npmAnswerTimeout is how long a package install waits for an answer. A
-// terminal can exist with nobody at it (docker run -t, ssh -t in a script),
-// and the install must still finish.
-const npmAnswerTimeout = time.Minute
+// scriptAnswerTimeout is how long an install waits for an answer. A terminal
+// can exist with nobody at it (docker run -t, ssh -t in a script), and the
+// install must still finish.
+const scriptAnswerTimeout = time.Minute
 
 // ask reads one line of answer from in. It reports false if timeout (when
 // above zero) passes first.
@@ -398,4 +396,16 @@ func bypassHint(shell, agent string) string {
 		return "$env:CUCK_NO_ANIMATION=1; " + agent + "; Remove-Item Env:CUCK_NO_ANIMATION"
 	}
 	return "CUCK_NO_ANIMATION=1 " + agent
+}
+
+// answerTimeout is how long setup waits for its question to be answered.
+// A package manager or an installer script runs setup with stdin redirected,
+// so setup asks on the terminal itself, and nobody may be at it (ssh -t,
+// docker run -t): those runs give up after scriptAnswerTimeout. Run by hand,
+// setup waits as long as it takes.
+func answerTimeout(fromNPM, openedConsole bool) time.Duration {
+	if fromNPM || openedConsole {
+		return scriptAnswerTimeout
+	}
+	return 0
 }
