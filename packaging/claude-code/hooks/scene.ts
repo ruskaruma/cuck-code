@@ -3,6 +3,7 @@
 // and lower half blocks), plus one row of caption text underneath.
 
 import type { EventKind, Kind } from '../types'
+import type { Segment } from './stats'
 
 export type Skin = 'none' | 'halloween'
 // How the scene is dressed: the season's costumes, and whether it's safe for work.
@@ -19,13 +20,14 @@ export type Shot = {
   wink: string // what he says as he winks
   friends: number // how many friends he brought this turn: they leave after him
   event?: { kind: EventKind; t: number; count: number }
+  card?: Segment[][] // the stats card, drawn as text
 }
 
 export const ROWS = 9 // 8 rows of pixels (16 high) and the caption row
 export const MAX_COLUMNS = 64
 export const MIN_COLUMNS = 40
 // busy loops until Claude finishes. In leave, he winks at WINK_AT.
-export const DURATION: Record<Kind, number> = { enter: 1800, busy: Infinity, leave: 5000, breather: 5200, refused: 3500, morning: 4600 }
+export const DURATION: Record<Kind, number> = { enter: 1800, busy: Infinity, leave: 5000, breather: 5200, refused: 3500, morning: 4600, card: 15000 }
 export const WINK_AT = 1900
 const MAX_FRIENDS = 3 // drawn at once; there may be more
 
@@ -407,6 +409,16 @@ export function frame(shot: Shot): Uint32Array {
     drawDoor(cv, look, doorX, 0, 0, false)
     cv.sprite(noEntry, doorX + 3, 5)
     fade = 1 - ramp(t, 3000, 3500)
+  } else if (kind === 'card') {
+    // Your stats, boxed, and him beside them, winking at you.
+    const width = shot.card?.[0]?.reduce((n, [text]) => n + text.length, 0) ?? 0
+    if (columns >= width + 12) {
+      const rows = himFront.slice()
+      ;[rows[3], rows[4], rows[5], rows[6]] = Math.floor(t / 1400) % 3 === 2 ? faces.wink : faces.open
+      if (look.skin === 'halloween') rows[6] = '..tFmmFt..'
+      cv.sprite(Math.floor(t / 150) % 3 === 2 ? rows.map(r => r.replace(/W/g, 'V')) : rows, width + 2, 1)
+    }
+    fade = 1 - ramp(t, 14000, 15000)
   } else if (kind === 'morning') {
     // The morning after: the sun comes up and she lets herself out, shoes in hand.
     cv.sprite(sun, 4, Math.round(14 - ramp(t, 0, 2500) * 12), 0.9)
@@ -466,6 +478,16 @@ export function frame(shot: Shot): Uint32Array {
       i += 3
     }
   }
+  // The card's text over the pixels, cell by cell.
+  shot.card?.forEach((segments, row) => {
+    let x = 0
+    for (const [text, colour] of segments) {
+      for (const ch of text) {
+        if (x < columns && row < ROWS - 1) words.set([ch.codePointAt(0) ?? 0x20, dim(colour, fade), DEFAULT], (row * columns + x) * 3)
+        x += 1
+      }
+    }
+  })
   const text = caption.slice(0, clamp(shown, 0, columns - CAPTION_X - 1))
   for (let x = 0; x < columns; x++) {
     const ch = x >= CAPTION_X && x - CAPTION_X < text.length ? text.charCodeAt(x - CAPTION_X) : 0x20

@@ -227,3 +227,13 @@ for at, g in ((0.02, 1.0), (0.11, 0.8)):
     tick = rng2.standard_normal(n) * np.exp(-np.maximum(t, 0) / 0.0015) * (t >= 0)
     y += g * (resonate(tick, 2600, 12) + resonate(tick, 4100, 14) * 0.7 + resonate(tick, 900, 5) * 0.4)
 write('lock', y, 'aecho=0.8:0.3:15:0.08,loudnorm=I=-22:TP=-3')
+
+# Achievement unlocked: a short bright fanfare, up the arpeggio.
+parts = []
+for f0, dur in [(523.25, 0.11), (659.25, 0.11), (783.99, 0.11), (1046.5, 0.55)]:
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    phase = 2 * np.pi * f0 * t * (1 + 0.004 * np.sin(2 * np.pi * 6 * t) * (dur > 0.3))
+    note = sum((1 / h) * np.exp(-(h - 1) / 3.5) * np.sin(h * phase) for h in range(1, 10))
+    parts.append(note * np.minimum(1, t / 0.01) * np.minimum(1, (dur - t) / 0.05))
+write('fanfare', np.concatenate(parts), 'aecho=0.8:0.35:35:0.15,loudnorm=I=-18:TP=-2')

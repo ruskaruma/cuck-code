@@ -1,8 +1,8 @@
 /**
  * A clip: she walks in, the busy loop, he walks out; a breather with no turn
- * running (a /compact); Claude saying no; the morning after.
+ * running (a /compact); Claude saying no; the morning after; your stats.
  */
-export type Kind = 'enter' | 'busy' | 'leave' | 'breather' | 'refused' | 'morning'
+export type Kind = 'enter' | 'busy' | 'leave' | 'breather' | 'refused' | 'morning' | 'card'
 
 /**
  * What interrupts the busy loop: he asks you for a yes and you answer, his

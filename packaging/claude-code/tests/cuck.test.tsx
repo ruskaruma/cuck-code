@@ -22,7 +22,7 @@ const command = (name: string, args = '') =>
 // `onCall`.
 function engine(on: On, { onCall = false, os = 'Linux', env = {} } = {}) {
   mock.env(on, env)
-  const heard = { sounds: [] as string[], players: [] as string[], notices: [] as string[] }
+  const heard = { sounds: [] as string[], players: [] as string[], notices: [] as string[], toasts: [] as string[], copied: [] as string[] }
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.complete', () => ({ text: 'done' }))
   on('command.register', () => ({ value: { command: 'cuck' } }))
@@ -38,6 +38,15 @@ function engine(on: On, { onCall = false, os = 'Linux', env = {} } = {}) {
     return { value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('session.id', () => ({ value: 'this-session' }))
+  on('ui.toast', (_, e) => {
+    heard.toasts.push(e.text)
+    return { value: undefined }
+  })
+  on('ui.copy', (_, e) => {
+    heard.copied.push(e.text)
+    return { value: { isCopied: true } }
+  })
+  on('attribution.text', (_, e) => ({ text: e.text }))
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'helper' }))
   on('session.compact', () => ({ skip: 'nothing to compact' }))
   on('ui.notice', (_, e) => {
@@ -413,6 +422,67 @@ test('every model is a different man', async ($, on) => {
   await clock.advance(2200)
   expect(heard.sounds.at(-1)).toBe('him_haiku')
   expect(await caption($)).toBe('claude: ...was it good for you?')
+})
+
+test('your stats: counted turn by turn, kept, and shown as a card', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  for (const ms of [32000, 95000]) {
+    await $.prompt.submit(PROMPT)
+    await clock.advance(3000)
+    await $.turn.complete({ ...DONE, durationMs: ms })
+    await clock.advance(5500)
+  }
+  expect(heard.toasts).toEqual(['Achievement unlocked: First Time. You watched Claude do it.'])
+  expect(heard.sounds).toContain('fanfare')
+
+  const shown = await $.command.run(command('cuck', 'stats'))
+  expect(shown.text).toMatch(/cucked 2 times · 2m 07s in the chair/)
+  expect(shown.text).toMatch(/longest 1m 35s/)
+  expect(shown.text).toMatch(/1\/12 achievements: First Time/)
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await band.find({ key: 'strip' })).toBeDefined()
+  await band.unmount()
+  expect(await caption($)).toBe('/cuck badge puts it in your README.')
+})
+
+test('the badge: your time in the chair, on your clipboard', async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  mock.store(on, { stats: { turns: 40, ms: 3 * 3600000 + 12 * 60000 } })
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  const out = await $.command.run(command('cuck', 'badge'))
+  const md = '[![cucked for 3h 12m](https://img.shields.io/badge/cucked_for-3h_12m-ff5a6e)](https://github.com/ruskaruma/cuck-code)'
+  expect(out.text).toMatch(/Copied/)
+  expect(heard.copied).toEqual([md])
+})
+
+test('a turn that finishes at 3 in the morning is the Night Shift', async ($, on) => {
+  const clock = mock.clock(on, { now: new Date(2026, 10, 12, 3, 10).getTime() })
+  mock.store(on, { stats: { turns: 5, earned: { first: 1 } } })
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(3000)
+  await $.turn.complete(DONE)
+  expect(heard.toasts).toEqual(['Achievement unlocked: Night Shift. A turn finished between 2 and 5 in the morning.'])
+})
+
+test('with the trailer on, Claude signs its commits and pull requests', async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  mock.store(on)
+  engine(on)
+  await $.session.start(SESSION)
+  const coAuthor = 'Co-Authored-By: Claude <noreply@anthropic.com>'
+  expect((await $.attribution.text({ kind: 'commit', text: coAuthor })).text).toBe(coAuthor)
+
+  expect((await $.command.run(command('cuck', 'trailer on'))).text).toMatch(/Cucked-By: Claude/)
+  expect((await $.attribution.text({ kind: 'commit', text: coAuthor })).text).toBe(`${coAuthor}\nCucked-By: Claude`)
+  expect((await $.attribution.text({ kind: 'commit', text: '' })).text).toBe('Cucked-By: Claude')
+  expect((await $.attribution.text({ kind: 'pr', text: 'Generated with Claude Code' })).text).toMatch(/Generated with Claude Code\n\nCucked with \[Cuck Code\]/)
+  expect((await $.attribution.text({ kind: 'remedy', text: 'x' })).text).toBe('x')
 })
 
 test('the spinner and the closing line are rewritten', async ($, on) => {

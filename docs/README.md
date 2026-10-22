@@ -274,6 +274,11 @@ The scene follows what Claude does in between:
 | `/cuck sfw` | Safe for work: the same scene with clean lines ("ship it!", "who got the good code?"), typing instead of the bed, a do-not-disturb sign instead of the sock, and "Shipped for 32s". |
 | `/cuck meetings on\|off` | On (the default), it goes quiet and safe for work by itself while you're on a call: while your microphone is in use on Linux (PulseAudio or PipeWire) and Windows, and during a Zoom or FaceTime call on macOS. A call in a browser on macOS can't be seen, so use `/cuck sfw` for that. |
 | `/cuck skin auto\|halloween\|off` | Costumes. `auto` (the default) puts them on for the season: from Oct 24 to Nov 1 she's a witch, he's a vampire with red eyes, there's a jack-o'-lantern by the door and he asks "who got the good bite?". |
+| `/cuck stats` | What you've sat through: turns, time in the chair, the longest turn, friends over, yeses, refusals, test runs and achievements, as a card in the strip to screenshot. |
+| `/cuck badge` | A README badge of your time in the chair, copied to your clipboard: [![cucked for 3h 12m](https://img.shields.io/badge/cucked_for-3h_12m-ff5a6e)](https://github.com/ruskaruma/cuck-code) |
+| `/cuck trailer on\|off` | Off by default. On, Claude signs the commits it makes with a `Cucked-By: Claude` trailer, under its usual Co-Authored-By, and adds a line to its pull requests. Your own commits are never touched. |
+
+**Achievements** pop up as you earn them, with a fanfare: First Time, Century (100 turns), Marathon (a 30-minute turn), Committed (24 hours all told), Full House (5 friends at once), Night Shift (a turn finishing between 2 and 5 am), Respect (Claude said no), Performance Issues, Screamer (tests passed 10 times), Enthusiastic Consent (25 yeses), Second Wind (a breather) and Family Building (the landlord came by).
 
 Narrow terminals (under 40 columns), the VS Code extension and the desktop app show the captions without the pixel strip.
 

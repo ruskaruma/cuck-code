@@ -3,7 +3,8 @@
 // walks out, turns to you and winks. It all plays in the band above the
 // prompt and vanishes after. When Claude needs your permission he leans out
 // and asks you for a yes. The spinner and the "Baked for 3s" line get the
-// same treatment. /cuck sets it up: quiet, safe for work, costumes.
+// same treatment. /cuck sets it up (quiet, safe for work, costumes) and keeps
+// your stats: a card, a README badge, achievements.
 
 import { atom, read, update } from 'claude-code'
 import type { Register, Timer } from 'claude-code'
@@ -12,6 +13,8 @@ import type { Clip, EventKind, Kind } from '../types'
 import { TEST_COMMAND, linesFor, season } from './lines'
 import type { Look, Shot, Skin } from './scene'
 import { DURATION, MAX_COLUMNS, MIN_COLUMNS, ROWS, WINK_AT, encode, eventDuration, frame, pick } from './scene'
+import type { Stats } from './stats'
+import { EMPTY, award, badge, card, restoreStats, summary } from './stats'
 
 const clip = atom({ plugin: 'cuck-code', key: 'clip' } as const, null)
 
@@ -48,8 +51,9 @@ type Settings = {
   sfw: boolean // clean lines and sounds, for screen-shares and the office
   skin: 'auto' | Skin // costumes: auto follows the calendar
   meetings: boolean // go quiet and safe for work while you're on a call
+  trailer: boolean // sign Claude's commits "Cucked-By: Claude"
 }
-const DEFAULTS: Settings = { quiet: false, sfw: false, skin: 'auto', meetings: true }
+const DEFAULTS: Settings = { quiet: false, sfw: false, skin: 'auto', meetings: true, trailer: false }
 
 // Settings as saved, checked field by field: anything unknown keeps its default.
 function restore(saved: unknown, legacyQuiet: unknown): Settings {
@@ -59,6 +63,7 @@ function restore(saved: unknown, legacyQuiet: unknown): Settings {
   if (typeof o.quiet === 'boolean') s.quiet = o.quiet
   if (typeof o.sfw === 'boolean') s.sfw = o.sfw
   if (typeof o.meetings === 'boolean') s.meetings = o.meetings
+  if (typeof o.trailer === 'boolean') s.trailer = o.trailer
   if (o.skin === 'auto' || o.skin === 'none' || o.skin === 'halloween') s.skin = o.skin
   return s
 }
@@ -72,6 +77,9 @@ function help(s: Settings): string {
     `  /cuck sfw                 safe for work: the same scene, clean lines (now ${onOff(s.sfw)})`,
     `  /cuck skin auto|halloween|off   costumes; auto puts them on for the season (now ${s.skin})`,
     `  /cuck meetings on|off     go quiet and safe for work while you're on a call (now ${onOff(s.meetings)})`,
+    '  /cuck stats               what you\'ve sat through, and your achievements',
+    '  /cuck badge               a README badge of your time in the chair',
+    `  /cuck trailer on|off      sign Claude's commits "Cucked-By: Claude" (now ${onOff(s.trailer)})`,
   ].join('\n')
 }
 
@@ -91,6 +99,10 @@ function configure(s: Settings, args: string): [Settings, string] {
     case 'meetings': {
       const meetings = flag(s.meetings)
       return [{ ...s, meetings }, meetings ? "On calls it goes quiet and safe for work." : 'It plays on calls too now.']
+    }
+    case 'trailer': {
+      const trailer = flag(s.trailer)
+      return [{ ...s, trailer }, trailer ? 'Claude signs its commits "Cucked-By: Claude" now.' : "Claude's commits go unsigned again."]
     }
     case 'skin':
       if (value === 'auto') return [{ ...s, skin: 'auto' }, 'Costumes follow the calendar: Halloween from Oct 24 to Nov 1.']
@@ -136,10 +148,13 @@ export const register: Register = on => {
   let beats = 0
   let lastVoice = ''
   let queue: Ev[] = []
+  let stats: Stats = { ...EMPTY, earned: {} }
   // Set up in session.start, as they reach the engine: keep the clock running
-  // while a clip plays, and play a sound.
+  // while a clip plays, play a sound, keep the stats, show a toast.
   let kick = () => {}
   let play = (_name: string) => {}
+  let save = () => {}
+  let toast = (_text: string) => {}
 
   const lookAt = (now: number): Look => ({
     skin: settings.skin === 'auto' ? season(new Date(now)) : settings.skin,
@@ -147,6 +162,16 @@ export const register: Register = on => {
   })
   const linesAt = (now: number) => linesFor(lookAt(now), model)
   const muted = () => settings.quiet || meeting
+
+  // Counts something you sat through, and hands out what it earned.
+  const tally = (change: (s: Stats) => void, now: number, hour = -1) => {
+    change(stats)
+    for (const a of award(stats, now, hour)) {
+      toast(`Achievement unlocked: ${a.name}. ${a.how[0]?.toUpperCase()}${a.how.slice(1)}.`)
+      if (!muted()) play('fanfare')
+    }
+    save()
+  }
 
   const startClip = (kind: Kind, now: number): Clip => {
     const lines = linesAt(now)
@@ -157,6 +182,7 @@ export const register: Register = on => {
       breather: lines.happenings.breather.say,
       refused: lines.refused,
       morning: lines.morning,
+      card: ['/cuck badge puts it in your README.'],
     }
     current = { kind, caption: pick(say[kind]), startedAt: now }
     cue = 0
@@ -199,6 +225,7 @@ export const register: Register = on => {
     const lines = linesAt(now)
     queue[0] = { kind: refused ? 'slam' : 'yes', at: now, cue: 0, count: 1 }
     speech = { text: pick(refused ? lines.slam : lines.yes), since: now }
+    if (!refused) tally(s => (s.yeses += 1), now)
   }
 
   // The sounds of a clip or an event, at their moments.
@@ -233,6 +260,7 @@ export const register: Register = on => {
       friends,
     }
     if (busy && ev && ev.at > 0) shot.event = { kind: ev.kind, t: now - ev.at, count: ev.count }
+    if (c.kind === 'card') shot.card = card(stats, look.sfw, Math.min(48, columns - 2))
     return shot
   }
 
@@ -256,6 +284,7 @@ export const register: Register = on => {
         if (working && now - turnStart >= minutes * 60000 && !visited.has(kind)) {
           visited.add(kind)
           happen(kind)
+          if (kind === 'landlord') tally(s => (s.landlords += 1), now)
         }
       }
       let ev = queue[0]
@@ -303,6 +332,10 @@ export const register: Register = on => {
     play = name => {
       void $.process.run(playerArgv(os, `${$.plugin.root}/sounds/${name}.wav`), { timeoutMs: 10000 }).catch(() => {})
     }
+    save = () => {
+      void $.store.set('stats', stats).catch(() => {})
+    }
+    toast = text => $.ui.toast(text, { timeoutMs: 6000 })
     let ticker: Timer | null = null
     const stop = () => {
       ticker?.cancel()
@@ -340,6 +373,7 @@ export const register: Register = on => {
     }
 
     settings = restore(await $.store.get('settings').catch(() => null), await $.store.get('quiet').catch(() => null))
+    stats = restoreStats(await $.store.get('stats').catch(() => null))
     const windows = await $.env.get('OS').then(v => v === 'Windows_NT', () => false)
     const uname = windows ? null : await $.process.run(['uname'], { timeoutMs: 5000 }).catch(() => null)
     os = windows ? 'windows' : uname?.stdout.trim() === 'Darwin' ? 'mac' : 'linux'
@@ -347,7 +381,7 @@ export const register: Register = on => {
       .register({
         name: 'cuck',
         description: 'Cuck Code: quiet, safe for work, costumes',
-        argumentHint: 'quiet | sfw | skin auto|halloween|off | meetings on|off',
+        argumentHint: 'stats | badge | quiet | sfw | skin auto|halloween|off | meetings on|off | trailer on|off',
         immediate: true,
       })
       .catch(() => {})
@@ -366,6 +400,22 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'cuck' }, async ($, e) => {
+    const what = e.args.trim().toLowerCase()
+    const sfw = settings.sfw || meeting
+    if (what === 'stats') {
+      // The card shows in the band too, unless Claude's busy in it.
+      if (!working && current === null) {
+        const c = startClip('card', await $.clock.now())
+        await update($, clip, () => c)
+        kick()
+      }
+      return { text: ['Cuck Code', ...summary(stats, sfw).map(l => `  ${l}`)].join('\n') }
+    }
+    if (what === 'badge') {
+      const md = badge(stats, sfw)
+      const copied = await $.ui.copy({ text: md }).then(r => r.isCopied, () => false)
+      return { text: `${md}\n\n${copied ? 'Copied: paste it into your README.' : 'Paste it into your README.'}` }
+    }
     const [s, text] = configure(settings, e.args)
     settings = s
     if (!s.meetings) meeting = false
@@ -427,7 +477,9 @@ export const register: Register = on => {
       if (knock?.kind === 'knock' && knock.id === e.tool_use_id) {
         answer(refused, await $.clock.now())
       } else if (working && e.tool === 'Bash' && !e.run_in_background && TEST_COMMAND.test(e.command) && !refused && !('deny' in result && result.deny)) {
-        happen(result.isError === true ? 'flop' : 'passed')
+        const failed = result.isError === true
+        happen(failed ? 'flop' : 'passed')
+        tally(s => (failed ? (s.flops += 1) : (s.passes += 1)), await $.clock.now())
       }
     } catch {
       // the show is never worth a failed tool call
@@ -436,10 +488,15 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   // He brought a friend: each agent Claude starts walks in through the door.
-  on('agent.spawn', ($, e, next) => {
+  on('agent.spawn', async ($, e, next) => {
     if (working) {
       friends += 1
       happen('friend')
+      const thisTurn = friends
+      tally(s => {
+        s.friends += 1
+        s.mostFriends = Math.max(s.mostFriends, thisTurn)
+      }, await $.clock.now())
     }
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -447,6 +504,7 @@ export const register: Register = on => {
   // Context compaction: they come out for a breather.
   on('session.compact', async ($, e, next) => {
     if (!e.agentId) {
+      tally(s => (s.breathers += 1), await $.clock.now())
       if (working) happen('breather')
       else if (current === null) {
         const c = startClip('breather', await $.clock.now())
@@ -479,6 +537,12 @@ export const register: Register = on => {
       return result
     }
     queue = []
+    tally(s => {
+      s.turns += 1
+      s.ms += e.durationMs
+      s.longest = Math.max(s.longest, e.durationMs)
+      if (e.reason === 'refusal') s.refused += 1
+    }, now, new Date(now).getHours())
     // Claude said no: the door stays shut. Otherwise out he comes.
     const c = startClip(e.reason === 'refusal' ? 'refused' : 'leave', now)
     await update($, clip, () => c)
@@ -487,6 +551,14 @@ export const register: Register = on => {
     // She stays the night; the next session sees her out.
     void $.session.id().then(id => $.store.set('morning', id)).catch(() => {})
     return result
+  })
+
+  // With /cuck trailer on, Claude signs what it commits, and its pull requests.
+  on('attribution.text', async ($, e, next) => {
+    const { text } = await next(e)
+    if (!settings.trailer || (e.kind !== 'commit' && e.kind !== 'pr')) return { text }
+    const sign = e.kind === 'commit' ? 'Cucked-By: Claude' : 'Cucked with [Cuck Code](https://github.com/ruskaruma/cuck-code)'
+    return { text: text.trim() === '' ? sign : `${text.trimEnd()}${e.kind === 'commit' ? '\n' : '\n\n'}${sign}` }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
