@@ -182,7 +182,10 @@ func cmdSetup(args []string, cfg config.Config) int {
 		return 1
 	}
 	// Claude Code plugins are per user, so a machine-wide setup leaves the mod to each user.
-	if !sys && haveClaudeCode() {
+	if sys {
+		fmt.Fprintln(out, "  Claude Code plugins are per user: anyone who wants the mod can add it in Claude Code with")
+		fmt.Fprintln(out, "    /plugin install "+modName+" --marketplace "+modMarketplace())
+	} else if haveClaudeCode() {
 		if err := installMod(); err != nil {
 			fmt.Fprintf(out, "  x Claude Code mod: %v\n", err)
 		} else {
