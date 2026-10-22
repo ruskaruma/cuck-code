@@ -81,6 +81,10 @@ func Script(shell string, agents []string, self string) (string, error) {
 	switch shell {
 	case "bash", "zsh":
 		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: command <agent>\n")
+		// Interactive shells only: a script that reads startup files anyway
+		// (bash -l -c, a sourced profile) runs its agents plain. No return
+		// here: this is eval'd inside the user's startup file.
+		b.WriteString("if [ \"${-#*i}\" != \"$-\" ]; then\n")
 		// command -v can name a hashed cuck that has since been deleted, hence the -x checks.
 		fmt.Fprintf(&b, "__cuck_bin() { local c; c=$(command -v cuck 2>/dev/null); [ -x \"$c\" ] || c=%s; [ -x \"$c\" ] && printf '%%s\\n' \"$c\"; }\n", shQuote(self))
 		// The alias builtin (not BASH_ALIASES, which bash 3.2 on macOS lacks)
@@ -119,12 +123,16 @@ func Script(shell string, agents []string, self string) (string, error) {
 			b.WriteString("__cuck_first() { __cuck_take; PROMPT_COMMAND=${PROMPT_COMMAND//__cuck_first;/}; }\n")
 			b.WriteString("PROMPT_COMMAND=\"__cuck_first;${PROMPT_COMMAND//__cuck_first;/}\"\n")
 		}
+		b.WriteString("fi\n")
 	case "fish":
 		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: command <agent>\n")
+		// conf.d is read by every fish, scripts included.
+		b.WriteString("if status is-interactive\n")
 		for _, a := range agents {
 			fmt.Fprintf(&b, "function %s --wraps %s; if type -q cuck; command cuck --hooked --agent %s -- $argv; else if test -x %s; %s --hooked --agent %s -- $argv; else; command %s $argv; end; end\n",
 				a, a, a, fishQuote(self), fishQuote(self), a, a)
 		}
+		b.WriteString("end\n")
 	case "powershell", "pwsh":
 		b.WriteString("# Cuck Code: coding agents play the intro first. Bypass once with: & (Get-Command <agent> -CommandType Application)\n")
 		fmt.Fprintf(&b, "function global:__cuck_bin { $c = Get-Command cuck -ErrorAction SilentlyContinue | Select-Object -First 1; if ($c) { $c.Source } elseif (Test-Path -LiteralPath %s) { %s } }\n", psQuote(self), psQuote(self))

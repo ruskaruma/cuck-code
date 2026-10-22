@@ -192,3 +192,61 @@ func testShell(t *testing.T, sh string) {
 		}
 	}
 }
+
+// Scripts get the plain agent: shells that read startup files without being
+// interactive (bash -l -c on macOS, fish -c, a profile sourced by a script)
+// must not pick up the wrappers.
+func TestHookOnlyInInteractiveShells(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the bash, zsh and fish hooks are tested on Unix")
+	}
+	for _, sh := range []string{"bash", "zsh", "fish"} {
+		if _, err := exec.LookPath(sh); err != nil {
+			t.Logf("%s isn't installed; skipping it", sh)
+			continue
+		}
+		t.Run(sh, func(t *testing.T) {
+			dir := t.TempDir()
+			bin := filepath.Join(dir, "bin")
+			cuck := filepath.Join(dir, "cuck", "cuck")
+			for path, body := range map[string]string{
+				cuck:                         "#!/bin/sh\necho \"cuck $*\"\n",
+				filepath.Join(bin, "claude"): "#!/bin/sh\necho \"claude $*\"\n",
+			} {
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			hook, err := Script(sh, []string{"claude"}, cuck)
+			if err != nil {
+				t.Fatal(err)
+			}
+			hookFile := filepath.Join(dir, "hook")
+			if err := os.WriteFile(hookFile, []byte(hook), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			load := `eval "$(cat ` + hookFile + `)"; `
+			if sh == "fish" {
+				load = "source " + hookFile + "; "
+			}
+			for _, c := range []struct {
+				interactive bool
+				want        string
+			}{{false, "claude -x"}, {true, "cuck --hooked --agent claude -- -x"}} {
+				args := []string{"-c", load + "claude -x"}
+				if c.interactive {
+					args = append([]string{"-i"}, args...)
+				}
+				cmd := exec.Command(sh, args...)
+				cmd.Env = []string{"HOME=" + dir, "ZDOTDIR=" + dir, "XDG_CONFIG_HOME=" + dir, "PATH=" + bin + ":/usr/bin:/bin", "TERM=dumb"}
+				out, _ := cmd.Output()
+				if got := strings.TrimSpace(string(out)); got != c.want {
+					t.Errorf("%s %q printed %q, want %q", sh, args, got, c.want)
+				}
+			}
+		})
+	}
+}

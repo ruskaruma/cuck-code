@@ -16,9 +16,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install zsh for the shell hook tests
+      - name: Install zsh and fish for the shell hook tests
         if: runner.os == 'Linux'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh fish
       - run: go vet ./...
       - run: go test ./...
       - run: go build ./cmd/cuck

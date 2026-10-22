@@ -87,7 +87,7 @@ $ cuck setup
 What it does:
 
 - It adds a small, clearly marked block to your shell startup files. The block asks `cuck` for a wrapper function for each agent. Supported shells are **bash**, **zsh**, **fish** and **PowerShell** (both 7 and Windows PowerShell 5.1).
-- It only affects **interactive** shells. Scripts, cron jobs, CI, IDE integrations and other programs that run `claude` or `codex` are untouched.
+- It only affects **interactive** shells. Scripts, cron jobs, CI, IDE integrations and other programs that run `claude` or `codex` are untouched, even when they start bash, zsh or fish with its startup files (`bash -l -c`, `fish -c`). PowerShell is the exception: it also loads profiles for `pwsh -File` and `pwsh -Command`, so scripts that run an agent should pass `-NoProfile`.
 - Agents that aren't installed are fine to list. You get the usual `command not found`.
 - It is safe to run again. Running `setup` twice never duplicates anything, and npm upgrades refresh the hook without asking again.
 
