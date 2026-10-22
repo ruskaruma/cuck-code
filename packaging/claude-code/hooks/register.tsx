@@ -9,9 +9,9 @@ import { atom, read, update } from 'claude-code'
 import type { Register, Timer } from 'claude-code'
 
 import type { Clip, EventKind, Kind } from '../types'
-import { linesFor, season } from './lines'
+import { TEST_COMMAND, linesFor, season } from './lines'
 import type { Look, Shot, Skin } from './scene'
-import { DURATION, EVENT_DURATION, MAX_COLUMNS, MIN_COLUMNS, ROWS, WINK_AT, encode, frame, pick } from './scene'
+import { DURATION, MAX_COLUMNS, MIN_COLUMNS, ROWS, WINK_AT, encode, eventDuration, frame, pick } from './scene'
 
 const clip = atom({ plugin: 'cuck-code', key: 'clip' } as const, null)
 
@@ -104,6 +104,14 @@ function configure(s: Settings, args: string): [Settings, string] {
 // The words Claude Code's dialog uses when you turn a tool call down.
 const REFUSED = /doesn't want to proceed|was rejected|denied/i
 
+// The longer Claude takes, the more the building notices: minutes into a turn.
+const ESCALATIONS: readonly (readonly [number, EventKind])[] = [[5, 'pizza'], [15, 'neighbour'], [30, 'landlord']]
+
+// Something interrupting the busy loop: started `at` (0 until its turn
+// comes), its sounds played so far, how many friends walked in, and for a
+// knock, the call he's asking about.
+type Ev = { kind: EventKind; at: number; cue: number; count: number; id?: string }
+
 export const register: Register = on => {
   let settings = DEFAULTS
   let os: Os = 'linux'
@@ -112,16 +120,22 @@ export const register: Register = on => {
   let band: { requestId: string; columns: number } | null = null
   let spinnerWord = pick(linesFor({ skin: 'none', sfw: false }).spinner)
   let current: Clip | null = null
+  let cue = 0 // the clip's sounds played so far
   let working = false
+  // The turn: when it started, which model did it, the friends he brought,
+  // and which visitors have come by.
+  let turnStart = 0
+  let model = ''
+  let friends = 0
+  let visited = new Set<EventKind>()
   // While busy: what the band says and since when, when the next sounds are
-  // due, and what's interrupting (he's at the door asking you for a yes).
+  // due, and what's interrupting it, first in line first.
   let speech = { text: '', since: 0 }
   let nextBeat = 0
   let nextVoice = 0
   let beats = 0
   let lastVoice = ''
-  let event: { kind: EventKind; at: number; id?: string; cue: number } | null = null
-  let winked = false
+  let queue: Ev[] = []
   // Set up in session.start, as they reach the engine: keep the clock running
   // while a clip plays, and play a sound.
   let kick = () => {}
@@ -131,32 +145,83 @@ export const register: Register = on => {
     skin: settings.skin === 'auto' ? season(new Date(now)) : settings.skin,
     sfw: settings.sfw || meeting,
   })
+  const linesAt = (now: number) => linesFor(lookAt(now), model)
   const muted = () => settings.quiet || meeting
 
   const startClip = (kind: Kind, now: number): Clip => {
-    const lines = linesFor(lookAt(now))
-    current = { kind, caption: pick(kind === 'enter' ? lines.enter : kind === 'busy' ? lines.busy : lines.leave), startedAt: now }
+    const lines = linesAt(now)
+    const say: Record<Kind, readonly string[]> = {
+      enter: lines.enter,
+      busy: lines.busy,
+      leave: lines.leave,
+      breather: lines.happenings.breather.say,
+      refused: lines.refused,
+      morning: lines.morning,
+    }
+    current = { kind, caption: pick(say[kind]), startedAt: now }
+    cue = 0
     if (kind === 'busy') {
       speech = { text: current.caption, since: now }
       nextBeat = now
       nextVoice = now + 2000
       beats = 0
     }
-    winked = false
     return current
+  }
+
+  // Lines something up to interrupt the busy loop. A knock goes first, in
+  // place of whatever was on; friends arriving together walk in together.
+  const happen = (kind: EventKind, extra: Partial<Ev> = {}) => {
+    const ev: Ev = { kind, at: 0, cue: 0, count: 1, ...extra }
+    if (kind === 'knock') queue = [ev, ...queue.slice(1)]
+    else if (kind === 'friend') {
+      const waiting = queue.find(q => q.kind === 'friend' && q.at === 0)
+      if (waiting) waiting.count += 1
+      else queue.push(ev)
+    } else if (queue.length < 4 && !queue.some(q => q.kind === kind && q.at === 0)) queue.push(ev)
+  }
+
+  // Its turn has come: what the band says while it's on.
+  const begin = (ev: Ev, now: number) => {
+    const lines = linesAt(now)
+    ev.at = now
+    ev.cue = 0
+    if (ev.kind === 'knock') speech = { text: lines.knock[1], since: now + 400 }
+    else if (ev.kind === 'friend') speech = { text: (ev.count === 1 ? lines.friends[0] : lines.friends[1]).replace('{n}', String(ev.count)), since: now }
+    else if (ev.kind !== 'yes' && ev.kind !== 'slam') {
+      const say = lines.happenings[ev.kind].say
+      if (say.length > 0) speech = { text: pick(say), since: now }
+    }
   }
 
   // You answered him: back in he goes, or the door slams.
   const answer = (refused: boolean, now: number) => {
-    const lines = linesFor(lookAt(now))
-    event = { kind: refused ? 'slam' : 'yes', at: now, cue: 0 }
+    const lines = linesAt(now)
+    queue[0] = { kind: refused ? 'slam' : 'yes', at: now, cue: 0, count: 1 }
     speech = { text: pick(refused ? lines.slam : lines.yes), since: now }
+  }
+
+  // The sounds of a clip or an event, at their moments.
+  const clipCues = (kind: Kind, now: number): readonly (readonly [number, string])[] => {
+    const lines = linesAt(now)
+    if (kind === 'leave') return [[WINK_AT, lines.wink[0]]] // to you, as he winks
+    if (kind === 'refused') return [[300, 'lock']]
+    if (kind === 'breather') return lines.happenings.breather.cues
+    return []
+  }
+  const eventCues = (ev: Ev, now: number): readonly (readonly [number, string])[] => {
+    const lines = linesAt(now)
+    if (ev.kind === 'knock') return [[400, 'knock'], [1100, lines.knock[0]]]
+    if (ev.kind === 'slam') return [[0, 'slam']]
+    if (ev.kind === 'yes') return []
+    return lines.happenings[ev.kind].cues
   }
 
   const shotFor = (c: Clip, now: number, columns: number): Shot => {
     const look = lookAt(now)
     const t = Math.max(0, now - c.startedAt)
     const busy = c.kind === 'busy'
+    const ev = queue[0]
     const shot: Shot = {
       kind: c.kind,
       t,
@@ -164,9 +229,10 @@ export const register: Register = on => {
       look,
       caption: busy ? speech.text || c.caption : c.caption,
       captionAge: busy ? now - speech.since : t,
-      wink: linesFor(look).wink[1],
+      wink: linesFor(look, model).wink[1],
+      friends,
     }
-    if (busy && event) shot.event = { kind: event.kind, t: now - event.at }
+    if (busy && ev && ev.at > 0) shot.event = { kind: ev.kind, t: now - ev.at, count: ev.count }
     return shot
   }
 
@@ -178,21 +244,34 @@ export const register: Register = on => {
     if (t > DURATION[c.kind]) {
       return c.kind === 'enter' && working ? { next: 'busy', sounds: [] } : { done: true, sounds: [] }
     }
-    const lines = linesFor(lookAt(now))
+    const lines = linesAt(now)
     const sounds: string[] = []
+    const due = (cues: readonly (readonly [number, string])[], at: number, played: number) => {
+      let n = played
+      for (let next = cues[n]; next && now - at >= next[0]; next = cues[++n]) sounds.push(next[1])
+      return n
+    }
     if (c.kind === 'busy') {
-      if (event && now - event.at > EVENT_DURATION[event.kind]) {
-        event = null
-        if (!working) return { done: true, sounds: [] } // the turn ended on a slam
-        speech = { text: pick(lines.busy), since: now }
-        nextBeat = now
-        nextVoice = Math.max(nextVoice, now + 2500)
+      for (const [minutes, kind] of ESCALATIONS) {
+        if (working && now - turnStart >= minutes * 60000 && !visited.has(kind)) {
+          visited.add(kind)
+          happen(kind)
+        }
       }
-      if (event) {
-        // Each interruption's sounds, at their moments.
-        const cues: [number, string][] =
-          event.kind === 'knock' ? [[400, 'knock'], [1100, lines.knock[0]]] : event.kind === 'slam' ? [[0, 'slam']] : []
-        for (let cue = cues[event.cue]; cue && now - event.at >= cue[0]; cue = cues[++event.cue]) sounds.push(cue[1])
+      let ev = queue[0]
+      if (ev && ev.at > 0 && now - ev.at > eventDuration(ev.kind, ev.count)) {
+        queue.shift()
+        ev = queue[0]
+        if (!working) return { done: true, sounds: [] } // the turn ended on a slam
+        if (!ev) {
+          speech = { text: pick(lines.busy), since: now }
+          nextBeat = now
+          nextVoice = Math.max(nextVoice, now + 2500)
+        }
+      }
+      if (ev && ev.at === 0) begin(ev, now)
+      if (ev) {
+        ev.cue = due(eventCues(ev, now), ev.at, ev.cue)
       } else if (now >= nextVoice) {
         // Hers most of the time, his now and then; never the same twice running.
         const pool = Math.random() < 0.8 ? lines.her : lines.his
@@ -212,9 +291,8 @@ export const register: Register = on => {
         nextBeat = now + 800
         if (now - speech.since > 2600) speech = { text: pick(lines.busy), since: now }
       }
-    } else if (c.kind === 'leave' && t >= WINK_AT && !winked) {
-      winked = true
-      sounds.push(lines.wink[0]) // to you, as he winks
+    } else {
+      cue = due(clipCues(c.kind, now), c.startedAt, cue)
     }
     const cells = band ? encode(frame(shotFor(c, now, band.columns))) : undefined
     return { cells, requestId: band?.requestId, sounds: muted() ? [] : sounds }
@@ -247,6 +325,7 @@ export const register: Register = on => {
         } else if (s.done) {
           if (current === c) {
             current = null
+            queue = []
             stop()
             void update($, clip, () => null)
           }
@@ -273,6 +352,16 @@ export const register: Register = on => {
       })
       .catch(() => {})
     await $.command.register({ name: 'cuck-quiet', description: 'Mute or unmute the Cuck Code sounds', immediate: true }).catch(() => {})
+
+    // The last session had her over: she lets herself out as this one starts.
+    const session = await $.session.id().catch(() => '')
+    const last = await $.store.get('morning').catch(() => null)
+    if (typeof last === 'string' && last !== session && current === null) {
+      await $.store.delete('morning').catch(() => {})
+      const c = startClip('morning', await $.clock.now())
+      await update($, clip, () => c)
+      kick()
+    }
     return next(e)
   })
 
@@ -295,8 +384,11 @@ export const register: Register = on => {
     if (!e.command && !e.isMeta && e.text.trim() !== '') {
       const now = await $.clock.now()
       working = true
-      event = null
-      spinnerWord = pick(linesFor(lookAt(now)).spinner)
+      turnStart = now
+      friends = 0
+      visited = new Set()
+      queue = []
+      spinnerWord = pick(linesAt(now).spinner)
       const c = startClip('enter', now)
       await update($, clip, () => c)
       kick()
@@ -312,9 +404,9 @@ export const register: Register = on => {
     if (verdict.decision === 'ask' && e.approver === 'person' && id !== undefined && working) {
       try {
         const now = await $.clock.now()
-        const line = linesFor(lookAt(now)).knock[1]
-        event = { kind: 'knock', at: now, id, cue: 0 }
-        speech = { text: line, since: now + 400 }
+        const line = linesAt(now).knock[1]
+        happen('knock', { id })
+        if (current?.kind === 'busy') begin(queue[0] ?? { kind: 'knock', at: 0, cue: 0, count: 1, id }, now)
         kick()
         // The dialog opens once this returns.
         for (const ms of [150, 700]) $.clock.after(ms, () => $.ui.notice(id, line))
@@ -323,17 +415,47 @@ export const register: Register = on => {
       }
     }
     return verdict
-  })
+  }).catch(($, e, next) => next(e))
 
-  // The call you were asked about has run, or been turned down.
+  // A call has run: the one you were asked about, or a test run.
   on('tool.call', async ($, e, next) => {
     const result = await next(e)
-    if (event?.kind === 'knock' && event.id === e.tool_use_id) {
+    try {
       const said = 'text' in result && typeof result.text === 'string' ? result.text : String(result.result ?? '')
-      answer(result.isError === true && REFUSED.test(said), await $.clock.now().catch(() => event?.at ?? 0))
+      const refused = result.isError === true && REFUSED.test(said)
+      const knock = queue[0]
+      if (knock?.kind === 'knock' && knock.id === e.tool_use_id) {
+        answer(refused, await $.clock.now())
+      } else if (working && e.tool === 'Bash' && !e.run_in_background && TEST_COMMAND.test(e.command) && !refused && !('deny' in result && result.deny)) {
+        happen(result.isError === true ? 'flop' : 'passed')
+      }
+    } catch {
+      // the show is never worth a failed tool call
     }
     return result
-  })
+  }).catch(($, e, next) => next(e))
+
+  // He brought a friend: each agent Claude starts walks in through the door.
+  on('agent.spawn', ($, e, next) => {
+    if (working) {
+      friends += 1
+      happen('friend')
+    }
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // Context compaction: they come out for a breather.
+  on('session.compact', async ($, e, next) => {
+    if (!e.agentId) {
+      if (working) happen('breather')
+      else if (current === null) {
+        const c = startClip('breather', await $.clock.now())
+        await update($, clip, () => c)
+        kick()
+      }
+    }
+    return next(e)
+  }).catch(($, e, next) => next(e))
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
@@ -341,24 +463,29 @@ export const register: Register = on => {
       return result
     }
     working = false
+    model = e.usage?.model ?? model
     const now = await $.clock.now()
     if (e.isAborted) {
       // Turned down at the door: it slams, and that's the end of it.
-      if (event?.kind === 'knock') answer(true, now)
-      if (event?.kind === 'slam' && current?.kind === 'busy') {
+      if (queue[0]?.kind === 'knock') answer(true, now)
+      if (queue[0]?.kind === 'slam' && current?.kind === 'busy') {
+        queue = queue.slice(0, 1)
         kick()
         return result
       }
       current = null
-      event = null
+      queue = []
       await update($, clip, () => null)
       return result
     }
-    event = null
-    const c = startClip('leave', now)
+    queue = []
+    // Claude said no: the door stays shut. Otherwise out he comes.
+    const c = startClip(e.reason === 'refusal' ? 'refused' : 'leave', now)
     await update($, clip, () => c)
     kick()
-    if (!muted()) play('ding')
+    if (!muted() && c.kind === 'leave') play('ding')
+    // She stays the night; the next session sees her out.
+    void $.session.id().then(id => $.store.set('morning', id)).catch(() => {})
     return result
   })
 

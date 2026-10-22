@@ -1,7 +1,12 @@
 // What the band says and what you hear, for each look. Each voice line is a
 // clip in sounds/ and the caption shown while it plays.
 
+import type { EventKind } from '../types'
 import type { Look, Skin } from './scene'
+
+// An interruption of the busy loop: what the band says, and the sounds it
+// makes at their moments (milliseconds in).
+type Happening = { say: readonly string[]; cues: readonly (readonly [number, string])[] }
 
 export type Lines = {
   enter: readonly string[] // as she walks in
@@ -16,6 +21,10 @@ export type Lines = {
   knock: readonly [clip: string, caption: string] // asking you for a yes
   yes: readonly string[] // you said yes
   slam: readonly string[] // you didn't
+  friends: readonly [one: string, many: string] // he brought friends; {n} is how many
+  happenings: Readonly<Record<Exclude<EventKind, 'knock' | 'yes' | 'slam'>, Happening>>
+  refused: readonly string[] // Claude said no
+  morning: readonly string[] // she lets herself out
 }
 
 const STANDARD: Lines = {
@@ -63,6 +72,18 @@ const STANDARD: Lines = {
   knock: ['him_yespapi', 'claude: can I get a yes, papi?'],
   yes: ['you said yes. of course you did.', 'consent: given.', 'he goes back in.'],
   slam: ['*slam*', 'the door slams in your face.'],
+  friends: ['he brought a friend.', 'he brought friends. ({n})'],
+  happenings: {
+    friend: { say: [], cues: [[1000, 'her_ohhi']] },
+    breather: { say: ["they're taking a breather.", 'towels. water. round two.'], cues: [[1500, 'her_water']] },
+    pizza: { say: ["she ordered pizza. they're not stopping.", "pizza's here. they're not done."], cues: [[1150, 'knock'], [1500, 'pizza']] },
+    neighbour: { say: ['the neighbour is banging on the wall.'], cues: [[0, 'wallbang'], [1000, 'neighbour']] },
+    landlord: { say: ['the landlord is here. this is a family building.'], cues: [[1300, 'landlord']] },
+    flop: { say: ['performance issues...', 'the tests failed. it happens to every model.'], cues: [[150, 'trombone']] },
+    passed: { say: ["the tests passed. she's screaming.", "all green. she's loud about it."], cues: [[100, 'her_scream']] },
+  },
+  refused: ['claude said no. respect.', 'not tonight. claude said no.'],
+  morning: ['the morning after. she lets herself out.', "dawn. she's carrying her shoes."],
 }
 
 // For screen-shares and the office: the same scene, nothing to explain.
@@ -89,6 +110,18 @@ const SAFE: Lines = {
   knock: ['him_canigetayes', 'claude: can I get a yes?'],
   yes: ['approved.', 'you said yes.'],
   slam: ['*slam*', 'request denied.'],
+  friends: ['another reviewer joins.', 'more reviewers join. ({n})'],
+  happenings: {
+    friend: { say: [], cues: [] },
+    breather: { say: ['coffee break.'], cues: [[1500, 'sfw_coffee']] },
+    pizza: { say: ["lunch is here. they're not stopping."], cues: [[1150, 'knock'], [1500, 'pizza']] },
+    neighbour: { say: ['the neighbours would like it quieter.'], cues: [[0, 'wallbang'], [1000, 'neighbour']] },
+    landlord: { say: ['facilities came by.'], cues: [] },
+    flop: { say: ['the tests failed.'], cues: [[150, 'trombone']] },
+    passed: { say: ['all green!'], cues: [[100, 'sfw_green']] },
+  },
+  refused: ['claude declined.'],
+  morning: ['the next morning.'],
 }
 
 // She came as a witch, he came as a vampire.
@@ -101,10 +134,19 @@ const HALLOWEEN: Partial<Lines> = {
   wink: ['him_goodbite', 'claude: who got the good bite?'],
 }
 
-export function linesFor(look: Look): Lines {
+// Every model is a different man: Haiku is done fast, Sonnet's a regular.
+// The rest say the usual.
+const MODEL_WINKS: Readonly<Record<string, readonly [string, string]>> = {
+  haiku: ['him_haiku', 'claude: ...was it good for you?'],
+  sonnet: ['him_sonnet', 'claude: same time next prompt?'],
+}
+
+// The lines for a look; `model` is the model that did the turn, for the wink.
+export function linesFor(look: Look, model = ''): Lines {
   if (look.sfw) return SAFE
   if (look.skin === 'halloween') return { ...STANDARD, ...HALLOWEEN }
-  return STANDARD
+  const wink = MODEL_WINKS[/haiku|sonnet/i.exec(model)?.[0].toLowerCase() ?? '']
+  return wink ? { ...STANDARD, wink } : STANDARD
 }
 
 // The season's costumes, by the date: Halloween from Oct 24 to Nov 1.
@@ -114,3 +156,7 @@ export function season(d: Date): Skin {
   if ((month === 10 && day >= 24) || (month === 11 && day === 1)) return 'halloween'
   return 'none'
 }
+
+// The commands that run a test suite.
+export const TEST_COMMAND =
+  /(^|[\s;&|(])((npm|pnpm|yarn|bun)( run)? test|npx (jest|vitest|playwright test)|jest|vitest|pytest|go test|cargo (test|nextest)|make (test|check)|mvn( -\S+)* (test|verify)|gradlew? test|dotnet test|rspec|phpunit|mix test|deno test|ctest|tox|nox)\b/

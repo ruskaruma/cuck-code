@@ -253,7 +253,18 @@ The intro plays before Claude Code starts. The cuck-code **mod** plays inside it
 1. **You send a prompt.** She walks in through the door, and a sock goes on the knob.
 2. **Claude works.** The door rattles in time with the bed, hearts drift out, and you hear them through the door: creaks, the headboard, her lines ("oh yeahh", "¡sí, papi!", "don't stop", "oh my god... Claude!") and now and then his ("who got the good d?"). Claude Code's spinner says things like "Waiting outside" instead of "Sauteing".
 3. **Claude needs your permission.** He knocks, leans out of the door and asks you: "can I get a yes, papi?", in the strip and as a line under Claude Code's permission dialog. Say yes and he goes back in; say no and the door slams.
-4. **Claude finishes.** He walks out, turns to you with shiny eyes, winks and says, slowly, "who got... the good... d?". The strip fades and the closing line reads "Cucked for 32s" instead of "Baked for 32s".
+4. **Claude finishes.** He walks out, turns to you with shiny eyes, winks and says, slowly, "who got... the good... d?". The strip fades and the closing line reads "Cucked for 32s" instead of "Baked for 32s". Each model is a different man: after a Haiku turn it's "...was it good for you?", after Sonnet "same time next prompt?".
+
+The scene follows what Claude does in between:
+
+| When | What happens |
+|---|---|
+| Claude starts a helper agent | **He brought a friend.** One guy per agent walks in ("oh... hi?"), and they all walk out after him at the end. |
+| A test command runs (`npm test`, `pytest`, `go test`, `cargo test`, ...) | It fails: "performance issues...", a sad trombone and a grey heart. It passes: the door shakes and she screams. |
+| Claude compacts its context | **A breather.** They come out with towels and water ("water... I need water"), then go back in. A `/compact` with no turn running plays it too. |
+| A turn runs 5, 15, 30 minutes | She orders pizza, then the neighbour bangs on the wall ("keep it down in there!"), then the landlord comes by ("this is a family building!"). |
+| Claude refuses | The door stays shut, with a no-entry sign: "claude said no. respect." |
+| You start Claude Code after a session where it worked | **The morning after.** The sun comes up and she lets herself out, barefoot, carrying her shoes. |
 
 **`/cuck`** sets it up; each setting is kept between sessions:
 
@@ -274,7 +285,7 @@ Narrow terminals (under 40 columns), the VS Code extension and the desktop app s
 
 or from a shell: `claude plugin install cuck-code --marketplace ruskaruma/cuck-code`. It needs Claude Code 2.1.275 or later. `cuck uninstall` or `claude plugin uninstall cuck-code@cuck-code` removes it.
 
-**How it's built.** The mod lives in [`packaging/claude-code/`](../packaging/claude-code) and this repository is its marketplace ([`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json)). It's a Claude Code hooks module: `hooks/register.tsx` reacts to prompts, permission checks and finished turns, rewrites the spinner and the closing line, picks its lines from `hooks/lines.ts`, and draws `hooks/scene.ts`'s pixel art into the band above the prompt at 30 frames a second. Sounds play through `afplay` on macOS, PipeWire, PulseAudio or ALSA on Linux, and PowerShell's sound player on Windows. The voices were made with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0) and the other sounds are synthesised; `sounds/gen.py` regenerates them, or just the clips you name. Run its tests with `claude plugin test packaging/claude-code`, and try local changes with `claude --plugin-dir packaging/claude-code`. Users get a new version of the mod when its `version` in `.claude-plugin/plugin.json` goes up.
+**How it's built.** The mod lives in [`packaging/claude-code/`](../packaging/claude-code) and this repository is its marketplace ([`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json)). It's a Claude Code hooks module: `hooks/register.tsx` reacts to prompts, permission checks, tool calls, helper agents, compaction and finished turns, rewrites the spinner and the closing line, picks its lines from `hooks/lines.ts`, and draws `hooks/scene.ts`'s pixel art into the band above the prompt at 30 frames a second. Sounds play through `afplay` on macOS, PipeWire, PulseAudio or ALSA on Linux, and PowerShell's sound player on Windows. The voices were made with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0) and the other sounds are synthesised; `sounds/gen.py` regenerates them, or just the clips you name. Run its tests with `claude plugin test packaging/claude-code`, and try local changes with `claude --plugin-dir packaging/claude-code`. Users get a new version of the mod when its `version` in `.claude-plugin/plugin.json` goes up.
 
 ## Troubleshooting
 

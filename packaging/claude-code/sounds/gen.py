@@ -30,6 +30,7 @@ DOOR = 'lowpass=f=1500,lowpass=f=2200,aecho=0.85:0.45:28|57:0.22|0.12'  # heard 
 BEHIND_DOOR = f'{TRIM},{DOOR},loudnorm=I=-19:TP=-2'
 TO_YOU = f'{TRIM},aecho=0.8:0.3:18:0.08,loudnorm=I=-16:TP=-1.5'  # said to you, outside the door
 VAMPIRE = f'asetrate={SR}*0.93,aresample={SR},{TO_YOU}'  # a little deeper, a little slower
+THROUGH_WALL = f'{TRIM},lowpass=f=900,lowpass=f=1300,aecho=0.8:0.4:20|45:0.25|0.12,loudnorm=I=-20:TP=-2'  # next door
 
 
 def wanted(name):
@@ -87,6 +88,18 @@ for name, text, style, lang, speed, filters in [
     ('him_goodbite', 'Who got... the good... bite?', him, 'en-us', 0.68, VAMPIRE),
     ('him_yespapi', 'Can I get a yes, papi?', him, 'en-us', 0.85, TO_YOU),
     ('him_canigetayes', 'Can I get a yes?', him, 'en-us', 0.85, TO_YOU),
+    # Every model is a different man.
+    ('him_haiku', '...Was it good for you?', him, 'en-us', 0.95, TO_YOU),
+    ('him_sonnet', 'Same time... next prompt?', him, 'en-us', 0.8, TO_YOU),
+    # What happens while Claude works: his friends arrive, a breather, the
+    # tests pass, visitors.
+    ('her_ohhi', 'Oh... hi?', her, 'en-us', 0.85, BEHIND_DOOR),
+    ('her_water', 'Water... I need water.', her, 'en-us', 0.8, TO_YOU),
+    ('sfw_coffee', 'Coffee break!', her, 'en-us', 0.9, TO_YOU),
+    ('her_scream', 'Yes! Yes! YES!', her, 'en-us', 1.05, f'{TRIM},{DOOR},loudnorm=I=-15:TP=-1.5'),
+    ('pizza', 'Pizza delivery!', k.get_voice_style('am_eric'), 'en-us', 1.0, TO_YOU),
+    ('neighbour', 'Keep it down in there!', k.get_voice_style('bm_george'), 'en-gb', 1.0, THROUGH_WALL),
+    ('landlord', 'This is a family building!', k.get_voice_style('am_onyx'), 'en-us', 0.9, TO_YOU),
 ]:
     say(name, text, style, lang, speed, filters)
 
@@ -179,3 +192,38 @@ def clacks(name, count, dur):
 
 clacks('clack1', 6, 0.42)
 clacks('clack2', 5, 0.38)
+
+
+# Performance issues: a sad trombone, four notes down, the last one wobbling.
+t_all, y_all = [], []
+for f0, dur, wobble in [(293.66, 0.42, 0), (277.18, 0.42, 0), (261.63, 0.42, 0), (246.94, 1.4, 1)]:
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    f = f0 * (1 + wobble * 0.014 * np.sin(2 * np.pi * 5.5 * t) * np.minimum(1, t / 0.3)) * (1 - wobble * 0.03 * t / dur)
+    phase = 2 * np.pi * np.cumsum(f) / SR
+    bright = 0.25 + 0.75 * np.sin(np.pi * np.minimum(1, t / (0.6 * dur))) ** 2  # the wah of the mute opening
+    note = sum((1 / h) * np.exp(-(h - 1) / (0.6 + 6 * bright)) * np.sin(h * phase) for h in range(1, 14))
+    note *= np.minimum(1, t / 0.03) * np.minimum(1, (dur - t) / 0.08)
+    y_all.append(note)
+    y_all.append(np.zeros(int(0.03 * SR)))
+write('trombone', np.concatenate(y_all), 'lowpass=f=3500,aecho=0.8:0.3:30:0.1,loudnorm=I=-17:TP=-2')
+
+# The neighbour, fist on the wall: three heavy thuds through the plaster.
+n = int(0.95 * SR)
+y = np.zeros(n)
+for at in (0.0, 0.3, 0.6):
+    t = np.arange(n) / SR - at
+    on = t >= 0
+    tp = np.maximum(t, 0)
+    y += on * (np.sin(2 * np.pi * (62 - 18 * tp) * tp) * np.exp(-tp / 0.06) * 1.3
+               + resonate(rng2.standard_normal(n) * np.exp(-tp / 0.005) * on, 180, 2.5) * 2.5)
+write('wallbang', y, 'lowpass=f=700,aecho=0.8:0.35:25:0.12,loudnorm=I=-17:TP=-1.5')
+
+# A lock turning: two short metal clicks.
+n = int(0.35 * SR)
+y = np.zeros(n)
+for at, g in ((0.02, 1.0), (0.11, 0.8)):
+    t = np.arange(n) / SR - at
+    tick = rng2.standard_normal(n) * np.exp(-np.maximum(t, 0) / 0.0015) * (t >= 0)
+    y += g * (resonate(tick, 2600, 12) + resonate(tick, 4100, 14) * 0.7 + resonate(tick, 900, 5) * 0.4)
+write('lock', y, 'aecho=0.8:0.3:15:0.08,loudnorm=I=-22:TP=-3')

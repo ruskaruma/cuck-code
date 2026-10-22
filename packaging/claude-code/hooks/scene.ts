@@ -17,17 +17,31 @@ export type Shot = {
   captionAge: number // how long the caption has been up (it types itself out)
   look: Look
   wink: string // what he says as he winks
-  event?: { kind: EventKind; t: number }
+  friends: number // how many friends he brought this turn: they leave after him
+  event?: { kind: EventKind; t: number; count: number }
 }
 
 export const ROWS = 9 // 8 rows of pixels (16 high) and the caption row
 export const MAX_COLUMNS = 64
 export const MIN_COLUMNS = 40
 // busy loops until Claude finishes. In leave, he winks at WINK_AT.
-export const DURATION: Record<Kind, number> = { enter: 1800, busy: Infinity, leave: 5000 }
+export const DURATION: Record<Kind, number> = { enter: 1800, busy: Infinity, leave: 5000, breather: 5200, refused: 3500, morning: 4600 }
 export const WINK_AT = 1900
-// How long each interruption of the busy loop lasts; a knock, until you answer.
-export const EVENT_DURATION: Record<EventKind, number> = { knock: Infinity, yes: 900, slam: 1000 }
+const MAX_FRIENDS = 3 // drawn at once; there may be more
+
+// How long each interruption of the busy loop lasts: a knock, until you
+// answer; friends, by how many walk in.
+export function eventDuration(kind: EventKind, count = 1): number {
+  switch (kind) {
+    case 'knock':
+      return Infinity
+    case 'friend':
+      return 1300 + Math.min(count, MAX_FRIENDS) * 350
+    case 'breather':
+      return DURATION.breather
+  }
+  return { yes: 900, slam: 1000, pizza: 3800, neighbour: 2600, landlord: 4200, flop: 2800, passed: 2400 }[kind]
+}
 
 const PX_H = 16
 const DEFAULT = 0x01000000 // the terminal's own colour
@@ -46,6 +60,11 @@ const palette: Record<string, number> = {
   H: 0xff5a6e, '*': 0xffd76a, x: 0xf2efe9, X: 0xe0444d, S: 0xf2efe9, Q: 0x62d26f,
   // Halloween: the witch's hat and its buckle, a jack-o'-lantern, a bat, his fangs
   B: 0x4b3270, u: 0xf0b840, O: 0xf08a24, y: 0xffd34d, L: 0x4c8a2f, b: 0x9a6ad6, F: 0xffffff,
+  // his friends' shirts and hair
+  E: 0x4caf50, J: 0x3f7fd6, K: 0xe0b13a, l: 0xd9b45a, v: 0x231a17, f: 0xb5562a,
+  // the pizza guy's red, the landlord's suit, a water bottle, the neighbour's
+  // wall, the morning sun, the no-entry sign, a heart gone grey
+  R: 0xd8402f, A: 0x7a7f87, a: 0x4a4d52, Z: 0x5ab0ff, Y: 0xa39484, U: 0xffc94a, N: 0xc62828, c: 0x8a8a8a,
 }
 
 // Costumes recolour the cast: for Halloween she's a witch in purple, and he's
@@ -122,14 +141,27 @@ const faces: Record<'open' | 'wink', [string, string, string, string]> = {
 const sparkle = ['.*.', '*.*', '.*.']
 
 const heart = ['.H.H.', 'HHHHH', '.HHH.', '..H..']
+const greyHeart = ['.c.c.', 'ccccc', '.ccc.', '..c..']
 const bat = ['b...b', 'bb.bb', '.bbb.']
 const check = ['....Q', '...Q.', 'Q.Q..', '.Q...']
 const sock = ['xx.', 'XX.', 'xx.', 'xxx']
 const sign = ['.S.', 'SSS', 'SXS', 'SSS']
+const noEntry = ['.NNN.', 'NxxxN', '.NNN.']
 const pumpkin = ['..L..', '.OOO.', 'OyOyO', 'OOOOO']
+const pizza = ['PPPP', 'DDDD']
+const clipboard = ['xx', 'xx', 'aa']
+const sun = ['..UUUU..', '.UUUUUU.', 'UUUUUUUU', 'UUUUUUUU', '.UUUUUU.', '..UUUU..']
+
+// Who else walks through the door, as him in other clothes: his friends,
+// the pizza guy in red, the landlord in a grey suit with a tie.
+const FRIENDS = [{ g: 'l', w: 'E', T: 'E' }, { g: 'v', w: 'J', T: 'J' }, { g: 'f', w: 'K', T: 'K' }]
+const PIZZA_GUY = { g: 'R', w: 'R', T: 'x' }
+const LANDLORD = { g: 't', w: 'A', T: 'J', j: 'a' }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 const ramp = (t: number, from: number, to: number) => clamp((t - from) / (to - from), 0, 1)
+const mirror = (rows: readonly string[]) => rows.map(r => [...r].reverse().join(''))
+const recolour = (rows: readonly string[], swap: Record<string, string>) => rows.map(r => r.replace(/./g, ch => swap[ch] ?? ch))
 
 class Canvas {
   w: number
@@ -161,14 +193,27 @@ function dim(c: number, f: number): number {
   return (r << 16) | (g << 8) | b
 }
 
-// Her, walking right; for Halloween in her hat.
-function drawHer(cv: Canvas, look: Look, x: number, step: number, clipRight: number) {
-  const rows = her.concat(herLegs[step % 2] ?? [])
-  if (look.skin === 'halloween') {
-    cv.sprite(hat.slice(0, 2), x, 0, 1, clipRight)
-    rows[0] = hat[2] ?? ''
-  }
-  cv.sprite(rows, x, 2, 1, clipRight)
+// Her, walking right (or left), mid-step or not; for Halloween in her hat;
+// the morning after, barefoot with her shoes in her hand. Drawn from the top
+// of her hat, two pixels above her head.
+function drawHer(cv: Canvas, look: Look, x: number, step: number, opts: { left?: boolean; clipRight?: number; shoes?: boolean; towel?: boolean } = {}) {
+  const legs = (herLegs[step % 2] ?? []).map(r => (opts.shoes ? r.replace(/k/g, 's') : r))
+  const rows = her.concat(legs)
+  if (opts.towel) rows[6] = '..xxxxx.'
+  if (look.skin === 'halloween') rows[0] = hat[2] ?? ''
+  const drawn = opts.left ? mirror(rows) : rows
+  const clipRight = opts.clipRight ?? Infinity
+  if (look.skin === 'halloween') cv.sprite(opts.left ? mirror(hat.slice(0, 2)) : hat.slice(0, 2), x, 0, 1, clipRight)
+  cv.sprite(drawn, x, 2, 1, clipRight)
+  if (opts.shoes) cv.sprite(['kk'], opts.left ? x - 1 : x + 7, 10)
+}
+
+// A man in profile, walking: him, or anyone in his clothes. Facing left by
+// default.
+function drawMan(cv: Canvas, x: number, step: number, opts: { swap?: Record<string, string>; right?: boolean; clipRight?: number; y?: number } = {}) {
+  let rows = him.concat(himLegs[step % 2] ?? [])
+  if (opts.swap) rows = recolour(rows, opts.swap)
+  cv.sprite(opts.right ? mirror(rows) : rows, x, opts.y ?? 1, 1, opts.clipRight ?? Infinity)
 }
 
 // open: 0 closed, 1 wide open. shake: the door rattles in its frame. The knob
@@ -222,21 +267,123 @@ function drawPeek(cv: Canvas, doorX: number, open: number, out: number, t: numbe
   if (out > 0.5) cv.sprite(['tt'], edge, 10)
 }
 
+// Something walks up from the left, waits at the door, then walks back off:
+// where it is at time t, and whether it's facing the door.
+function visit(t: number, doorX: number, arrive: number, leave: number, end: number): { x: number; right: boolean; moving: boolean } {
+  const stop = doorX - 10
+  if (t < arrive) return { x: Math.round(-9 + (t / arrive) * (stop + 9)), right: true, moving: true }
+  if (t < leave) return { x: stop, right: true, moving: false }
+  return { x: Math.round(stop - ramp(t, leave, end) * (stop + 10)), right: false, moving: true }
+}
+
+// The busy loop, interrupted by one event t milliseconds in.
+function drawEvent(cv: Canvas, look: Look, doorX: number, kind: EventKind, t: number, count: number) {
+  const step = Math.floor(t / 120)
+  switch (kind) {
+    case 'knock': {
+      // He leans out to ask you; the room goes quiet while he waits.
+      const open = ramp(t, 0, 250) * 0.5
+      drawDoor(cv, look, doorX, open, 0, false)
+      drawPeek(cv, doorX, open, ramp(t, 150, 450), t)
+      return
+    }
+    case 'yes': {
+      // Back in he goes, and the door shuts behind him.
+      const open = 0.5 * (1 - ramp(t, 250, 500))
+      drawDoor(cv, look, doorX, open, 0, open === 0)
+      if (t < 400) drawPeek(cv, doorX, open, 1 - ramp(t, 0, 300), t)
+      return
+    }
+    case 'slam':
+      // Shut in his face: the whole door shakes.
+      drawDoor(cv, look, doorX, 0, t < 450 ? (Math.floor(t / 45) % 3) - 1 : 0, true)
+      return
+    case 'friend': {
+      // His friends file in, one behind the other.
+      const n = Math.min(count, MAX_FRIENDS)
+      const last = 900 + (n - 1) * 350
+      const open = ramp(t, 600, 750) - ramp(t, last + 150, last + 300)
+      drawDoor(cv, look, doorX, open, 0, open === 0)
+      for (let i = 0; i < n; i++) {
+        const x = Math.round(-9 + ramp(t, i * 350, 900 + i * 350) * (doorX + 10))
+        if (x < doorX + 9) drawMan(cv, x, step + i, { swap: FRIENDS[i], right: true, clipRight: open > 0.5 ? doorX + 9 : doorX + 1 })
+      }
+      return
+    }
+    case 'breather': {
+      // They come out with towels and water, catch their breath, and go back in.
+      const open = ramp(t, 0, 250) - ramp(t, 4700, 4950)
+      drawDoor(cv, look, doorX, open, 0, open === 0)
+      const herX = doorX - 9
+      const hisX = doorX - 20
+      const out = (from: number, to: number, x: number) =>
+        Math.round(doorX + 1 - (ramp(t, from, to) - ramp(t, 3800 + from - 300, 4400 + from - 300)) * (doorX + 1 - x))
+      const pant = Math.floor(t / 400) % 2
+      if (t > 300 && t < 4700) {
+        const hx = out(500, 1100, hisX)
+        drawMan(cv, hx, t < 1100 || t > 3800 ? step : 0, { swap: { g: 'x' }, right: t > 3800, y: 1 + (t > 1100 && t < 3800 ? pant : 0) })
+        if (t > 1100 && t < 3800) cv.sprite(['Z', 'Z', 'Z'], hx - 1, 8)
+        drawHer(cv, look, out(300, 900, herX), t < 900 || t > 3800 ? step : 0, { left: t <= 3800, towel: true })
+      }
+      return
+    }
+    case 'pizza': {
+      // A delivery: he walks up, knocks, hands the box through the door, and goes.
+      const v = visit(t, doorX, 1100, 2800, 3800)
+      const open = (ramp(t, 2400, 2550) - ramp(t, 2800, 2950)) * 0.3
+      drawDoor(cv, look, doorX, open, 0, open === 0)
+      drawMan(cv, v.x, v.moving ? step : 0, { swap: PIZZA_GUY, right: v.right })
+      if (t < 2650) cv.sprite(pizza, v.x + 7 + Math.round(ramp(t, 2450, 2650) * 3), 9)
+      return
+    }
+    case 'landlord': {
+      // He walks up with his clipboard, taps his foot, and leaves.
+      const v = visit(t, doorX, 1200, 3000, 4200)
+      drawDoor(cv, look, doorX, 0, 0, true)
+      drawMan(cv, v.x, v.moving ? step : Math.floor(t / 300), { swap: LANDLORD, right: v.right })
+      cv.sprite(clipboard, v.right ? v.x + 7 : v.x - 1, 9)
+      return
+    }
+    case 'neighbour': {
+      // Banging on the wall: three thumps, the plaster jumping with each.
+      drawDoor(cv, look, doorX, 0, 0, true)
+      const bang = [0, 300, 600].some(at => t >= at && t < at + 120)
+      for (let y = 0; y < PX_H; y++) for (let x = 0; x < 3; x++) cv.set(x + (bang ? 1 : 0), y, cv.colours.Y ?? 0)
+      if (bang) for (const y of [5, 8, 11]) cv.sprite(['cc'], 5, y)
+      return
+    }
+    case 'flop':
+      // Performance issues: the door goes still and a grey heart sinks.
+      drawDoor(cv, look, doorX, 0, 0, true)
+      cv.sprite(look.sfw ? recolour(check, { Q: 'c' }) : greyHeart, doorX - 8, Math.round(1 + ramp(t, 0, 2400) * 10), 1 - ramp(t, 1800, 2700))
+      return
+    case 'passed': {
+      // Tests passed: the door shakes hard and hearts pour out.
+      drawDoor(cv, look, doorX, 0, Math.floor(t / 60) % 2, true)
+      for (let i = 0; i < 6; i++) {
+        const p = ramp(t, i * 180, i * 180 + 1100)
+        if (p > 0 && p < 1) cv.sprite(floater(look, i), doorX - 8 - ((i * 7) % 26), Math.round(11 - p * 11), 1 - p * 0.6)
+      }
+    }
+  }
+}
+
 // One frame, as Raster cells: row-major [codePoint, foreground, background].
 export function frame(shot: Shot): Uint32Array {
   const { kind, t, columns, look } = shot
   let { caption, captionAge } = shot
   const cv = new Canvas(columns, look.skin)
   const doorX = columns - 13
+  const step = Math.floor(t / 120)
   let fade = 1
-  let shown = 0 // caption characters shown
+  let shown = Math.floor(captionAge / 22) // caption characters shown
 
   if (kind === 'enter') {
     // She walks in from the left and through the door; it shuts, a sock goes on the knob.
     const open = ramp(t, 650, 850) - ramp(t, 1150, 1350)
     drawDoor(cv, look, doorX, open, 0, t > 1350)
     const x = Math.round(-9 + ramp(t, 0, 1100) * (doorX + 12))
-    if (t < 1150) drawHer(cv, look, x, Math.floor(t / 120), open > 0.5 ? Infinity : doorX + 1)
+    if (t < 1150) drawHer(cv, look, x, step, { clipRight: open > 0.5 ? Infinity : doorX + 1 })
     if (t > 1300) {
       const rise = Math.floor(ramp(t, 1300, 1800) * 6)
       cv.sprite(floater(look, 1), doorX - 7, 7 - rise, 1 - ramp(t, 1550, 1800))
@@ -245,35 +392,44 @@ export function frame(shot: Shot): Uint32Array {
     shown = Math.floor((captionAge - 150) / 22)
   } else if (kind === 'busy') {
     const ev = shot.event
-    if (ev?.kind === 'knock') {
-      // He leans out to ask you; the room goes quiet while he waits.
-      const open = ramp(ev.t, 0, 250) * 0.5
-      drawDoor(cv, look, doorX, open, 0, false)
-      drawPeek(cv, doorX, open, ramp(ev.t, 150, 450), ev.t)
-    } else if (ev?.kind === 'yes') {
-      // Back in he goes, and the door shuts behind him.
-      const open = 0.5 * (1 - ramp(ev.t, 250, 500))
-      drawDoor(cv, look, doorX, open, 0, open === 0)
-      if (ev.t < 400) drawPeek(cv, doorX, open, 1 - ramp(ev.t, 0, 300), ev.t)
-    } else if (ev?.kind === 'slam') {
-      // Shut in his face: the whole door shakes.
-      drawDoor(cv, look, doorX, 0, ev.t < 450 ? (Math.floor(ev.t / 45) % 3) - 1 : 0, true)
-    } else {
+    if (ev) drawEvent(cv, look, doorX, ev.kind, ev.t, ev.count)
+    else {
       // Behind the closed door, sock on the knob: it rattles in bursts, hearts drift out.
       drawDoor(cv, look, doorX, 0, t % 800 < 350 ? Math.floor(t / 90) % 2 : 0, true)
       drawFloaters(cv, look, doorX, t, 1300)
     }
-    shown = Math.floor(captionAge / 22)
+  } else if (kind === 'breather') {
+    // A breather with no turn running (a /compact): the same as in one.
+    drawEvent(cv, look, doorX, 'breather', t, 1)
+    fade = 1 - ramp(t, 4950, 5200)
+  } else if (kind === 'refused') {
+    // Claude said no: the door stays shut, a no-entry sign on it.
+    drawDoor(cv, look, doorX, 0, 0, false)
+    cv.sprite(noEntry, doorX + 3, 5)
+    fade = 1 - ramp(t, 3000, 3500)
+  } else if (kind === 'morning') {
+    // The morning after: the sun comes up and she lets herself out, shoes in hand.
+    cv.sprite(sun, 4, Math.round(14 - ramp(t, 0, 2500) * 12), 0.9)
+    const open = ramp(t, 300, 600) - ramp(t, 1900, 2200)
+    drawDoor(cv, look, doorX, open, 0, false)
+    if (t > 450) drawHer(cv, look, Math.round(doorX + 1 - ramp(t, 600, 3800) * (doorX + 12)), step, { left: true, shoes: true })
+    fade = 1 - ramp(t, 4100, 4600)
   } else {
-    // A last rattle; he walks out, stops, turns to you and winks.
+    // A last rattle; he walks out, stops, turns to you and winks. His friends
+    // follow him out and walk off past him.
+    const friends = Math.min(shot.friends, MAX_FRIENDS)
     const shake = t < 550 ? Math.floor(t / 60) % 2 : 0
-    const open = ramp(t, 550, 750) - ramp(t, 1700, 1900)
+    const closeAt = friends > 0 ? 1600 + (friends - 1) * 450 + 450 : 1700
+    const open = ramp(t, 550, 750) - ramp(t, closeAt, closeAt + 200)
     drawDoor(cv, look, doorX, open, shake, t < 550)
     if (t < 600) drawFloaters(cv, look, doorX, t, 600)
     const stopX = Math.max(2, doorX - 22)
+    for (let i = 0; i < friends; i++) {
+      const from = 1600 + i * 450
+      if (t >= from && t < from + 1300) drawMan(cv, Math.round(doorX + 1 - ramp(t, from, from + 1300) * (doorX + 11)), step + i, { swap: FRIENDS[i] })
+    }
     if (t >= 700 && t < 1500) {
-      const x = Math.round(doorX + 1 - ramp(t, 700, 1500) * (doorX + 1 - stopX))
-      cv.sprite(him.concat(himLegs[Math.floor(t / 120) % 2] ?? []), x, 1)
+      drawMan(cv, Math.round(doorX + 1 - ramp(t, 700, 1500) * (doorX + 1 - stopX)), step)
     } else if (t >= 1500) {
       const winking = t > WINK_AT
       const rows = himFront.slice()

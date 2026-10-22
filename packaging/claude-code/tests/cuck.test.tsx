@@ -37,6 +37,9 @@ function engine(on: On, { onCall = false, os = 'Linux', env = {} } = {}) {
     const stdout = e.argv[0] === 'uname' ? `${os}\n` : ''
     return { value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
+  on('session.id', () => ({ value: 'this-session' }))
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'helper' }))
+  on('session.compact', () => ({ skip: 'nothing to compact' }))
   on('ui.notice', (_, e) => {
     heard.notices.push(e.text ?? '')
     return { value: undefined }
@@ -269,6 +272,147 @@ test('on Windows the sounds play through PowerShell', async ($, on) => {
   await clock.advance(5000)
   expect(heard.players.length).toBeGreaterThan(0)
   expect(heard.players.every(p => p === 'powershell')).toBe(true)
+})
+
+const SPAWN = {
+  tool_use_id: 'agent1',
+  prompt: 'look around',
+  description: 'Look around',
+  subagentType: 'Explore',
+  provider: { plugin: 'engine', tier: 'core' },
+  parentModel: 'claude-opus-5-5',
+  background: false,
+  fork: false,
+} as const
+const USAGE = { input_tokens: 10, output_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+
+test('he brought friends: they walk in while Claude works, and leave after him', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(3000)
+  await $.agent.spawn(SPAWN)
+  await $.agent.spawn({ ...SPAWN, tool_use_id: 'agent2' })
+  await clock.advance(100)
+  expect(await caption($)).toBe('he brought friends. (2)')
+  await clock.advance(1200)
+  expect(heard.sounds).toContain('her_ohhi')
+  await clock.advance(2000)
+  await $.turn.complete(DONE)
+  await clock.advance(2200)
+  expect(heard.sounds.at(-1)).toBe('him_gooddee')
+})
+
+test('the tests: a failing run is performance issues, a passing one makes her scream', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  let failing = true
+  on('tool.check', () => ({ decision: 'allow' }))
+  on('tool.call', () =>
+    failing
+      ? { isError: true, result: 'Error: Exit code 1', text: 'Exit code 1\nFAIL src/login.test.ts' }
+      : { result: { stdout: 'ok', stderr: '', interrupted: false } },
+  )
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(3000)
+
+  await $.tool.call({ tool: 'Bash', command: 'npm test', tool_use_id: 'b1' })
+  await clock.advance(300)
+  expect(heard.sounds.at(-1)).toBe('trombone')
+  expect(await caption($)).toMatch(/performance issues|tests failed/)
+
+  await clock.advance(3000)
+  failing = false
+  await $.tool.call({ tool: 'Bash', command: 'cd api && go test ./...', tool_use_id: 'b2' })
+  await clock.advance(200)
+  expect(heard.sounds.at(-1)).toBe('her_scream')
+
+  // Anything else run in a shell, or a test run sent to the background, is nobody's business.
+  await clock.advance(3000)
+  const before = heard.sounds.filter(n => n === 'trombone' || n === 'her_scream').length
+  failing = true
+  await $.tool.call({ tool: 'Bash', command: 'ls -la', tool_use_id: 'b3' })
+  await $.tool.call({ tool: 'Bash', command: 'pytest', run_in_background: true, tool_use_id: 'b4' })
+  await clock.advance(1000)
+  expect(heard.sounds.filter(n => n === 'trombone' || n === 'her_scream').length).toBe(before)
+})
+
+test('compacting is a breather, during a turn or on its own', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  await $.session.compact({ trigger: 'manual', messages: [] })
+  await clock.advance(100)
+  expect(await caption($)).toMatch(/breather|towels/)
+  await clock.advance(1600)
+  expect(heard.sounds).toContain('her_water')
+  await clock.advance(4000)
+  expect(await caption($)).toBe('engine')
+
+  await $.prompt.submit(PROMPT)
+  await clock.advance(3000)
+  await $.session.compact({ trigger: 'auto', messages: [] })
+  await clock.advance(100)
+  expect(await caption($)).toMatch(/breather|towels/)
+})
+
+test('five minutes in she orders pizza', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(5 * 60000 + 2000)
+  expect(heard.sounds).toContain('pizza')
+  expect(heard.sounds).not.toContain('neighbour')
+})
+
+test('when Claude refuses, the door stays shut', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(3000)
+  await $.turn.complete({
+    ...TURN,
+    isAborted: false,
+    reason: 'refusal',
+    refusal: { category: null, explanation: null },
+  })
+  await clock.advance(400)
+  expect(heard.sounds.at(-1)).toBe('lock')
+  expect(heard.sounds).not.toContain('ding')
+  expect(await caption($)).toMatch(/said no/)
+})
+
+test('she stays the night: the next session sees her out', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on, { morning: 'last-session' })
+  engine(on)
+  await $.session.start(SESSION)
+  await clock.advance(100)
+  expect(await caption($)).toMatch(/morning|dawn/)
+  await clock.advance(5000)
+  expect(await caption($)).toBe('engine')
+})
+
+test('every model is a different man', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(3000)
+  await $.turn.complete({ ...DONE, usage: { ...USAGE, model: 'claude-haiku-5-5' } })
+  await clock.advance(2200)
+  expect(heard.sounds.at(-1)).toBe('him_haiku')
+  expect(await caption($)).toBe('claude: ...was it good for you?')
 })
 
 test('the spinner and the closing line are rewritten', async ($, on) => {
