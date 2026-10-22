@@ -1,0 +1,38 @@
+package main
+
+import (
+	"os"
+	"strings"
+	"testing"
+	"time"
+)
+
+// A terminal can exist with nobody at it (docker run -t, ssh -t in a
+// script); an npm install asking on it must still finish.
+func TestAskGivesUpWhenNobodyAnswers(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// w stays open until cleanup, so reads block as on an unattended terminal;
+	// closing it first ends the abandoned read with EOF.
+	t.Cleanup(func() { w.Close(); r.Close() })
+	done := make(chan bool, 1)
+	go func() { _, ok := ask(r, 50*time.Millisecond); done <- ok }()
+	select {
+	case ok := <-done:
+		if ok {
+			t.Error("ask reported an answer nobody gave")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("ask still waiting 5s into a 50ms timeout")
+	}
+}
+
+func TestAskReturnsTheAnswer(t *testing.T) {
+	for _, timeout := range []time.Duration{0, time.Second} {
+		if a, ok := ask(strings.NewReader("y\n"), timeout); !ok || a != "y\n" {
+			t.Errorf("ask(timeout %v) = %q, %v; want \"y\\n\", true", timeout, a, ok)
+		}
+	}
+}

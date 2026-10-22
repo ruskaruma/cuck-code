@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/ruskaruma/cuck-code/internal/config"
 	"github.com/ruskaruma/cuck-code/internal/shellhook"
@@ -129,7 +130,9 @@ func cmdSetup(args []string, cfg config.Config) int {
 		cin, cout, err := tty.OpenConsole()
 		switch {
 		case err == nil:
-			defer cin.Close()
+			// Left open: a timed-out ask leaves a read pending on it, and on
+			// Windows closing the console waits for that read. The process
+			// exits right after setup anyway.
 			in, out = cin, cout
 		case *fromNPM:
 			fmt.Fprintln(os.Stderr, "cuck-code installed. Run `cuck setup` to get cucked.")
@@ -144,7 +147,15 @@ func cmdSetup(args []string, cfg config.Config) int {
 	if !*yes {
 		// The answer goes on its own line: package-manager spinners redraw the current one.
 		fmt.Fprint(out, "  "+bold("Do you really want to get cucked?")+" [y/N]\n  > ")
-		answer, _ := bufio.NewReader(in).ReadString('\n')
+		var timeout time.Duration
+		if *fromNPM {
+			timeout = npmAnswerTimeout
+		}
+		answer, ok := ask(in, timeout)
+		if !ok {
+			fmt.Fprintln(out, "\n  No answer, so no. Run `cuck setup` if you change your mind.")
+			return 0
+		}
 		if a := strings.ToLower(strings.TrimSpace(answer)); a != "y" && a != "yes" {
 			fmt.Fprintln(out, "\n  Probably wise. Run `cuck setup` if you change your mind.")
 			return 0
@@ -246,11 +257,16 @@ func offerMod(cfg config.Config, sys bool) {
 	if err != nil {
 		return
 	}
-	defer in.Close()
+	// Left open, as in cmdSetup: closing it could wait on a timed-out ask.
 	fmt.Fprint(out, "\n  "+bold("New in Cuck Code:")+" it plays inside Claude Code too. She walks in when you send a prompt,\n"+
 		"  you hear them through the door while Claude works, and Claude walks out and winks when it's done.\n\n"+
 		"  Add it to Claude Code? [Y/n]\n  > ")
-	answer, _ := bufio.NewReader(in).ReadString('\n')
+	answer, ok := ask(in, npmAnswerTimeout)
+	if !ok {
+		// Nobody there: don't install it unasked, and don't record a no either.
+		fmt.Fprintln(out, "\n  No answer. `cuck setup` adds it any time.")
+		return
+	}
 	if a := strings.ToLower(strings.TrimSpace(answer)); a != "" && a != "y" && a != "yes" {
 		_ = config.Set("claude_mod", false)
 		fmt.Fprintln(out, "\n  Fine. `cuck setup` adds it any time.")
@@ -261,6 +277,31 @@ func offerMod(cfg config.Config, sys bool) {
 		return
 	}
 	fmt.Fprintln(out, "\n  + Claude Code mod. Start a new Claude Code session to see it. /cuck-quiet mutes it.")
+}
+
+// npmAnswerTimeout is how long a package install waits for an answer. A
+// terminal can exist with nobody at it (docker run -t, ssh -t in a script),
+// and the install must still finish.
+const npmAnswerTimeout = time.Minute
+
+// ask reads one line of answer from in. It reports false if timeout (when
+// above zero) passes first.
+func ask(in io.Reader, timeout time.Duration) (string, bool) {
+	if timeout <= 0 {
+		answer, _ := bufio.NewReader(in).ReadString('\n')
+		return answer, true
+	}
+	got := make(chan string, 1)
+	go func() {
+		answer, _ := bufio.NewReader(in).ReadString('\n')
+		got <- answer
+	}()
+	select {
+	case answer := <-got:
+		return answer, true
+	case <-time.After(timeout):
+		return "", false
+	}
 }
 
 // cmdUninstall removes the shell hook from every place it was installed.
