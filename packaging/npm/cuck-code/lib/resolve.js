@@ -20,4 +20,15 @@ function binaryPath() {
   return bin;
 }
 
-module.exports = { binaryPath, PLATFORMS };
+// Whether postinstall should copy the native binary over bin/cuck. Never on
+// Windows (the binary is cuck.exe there). Not under pnpm either: its global
+// shims run `node <pkg>/bin/cuck`, so once the binary sits there every
+// `cuck` call dies in Node with "SyntaxError: Invalid or unexpected token".
+// pnpm sets npm_config_user_agent to "pnpm/<version> ..." for build scripts,
+// including the ones `pnpm approve-builds -g` runs.
+function replacesLauncher(env, platform) {
+  const agent = String((env && env.npm_config_user_agent) || "");
+  return platform !== "win32" && !agent.startsWith("pnpm/");
+}
+
+module.exports = { binaryPath, replacesLauncher, PLATFORMS };

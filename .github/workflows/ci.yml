@@ -22,6 +22,9 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go build ./cmd/cuck
+      - name: Test the npm package's install logic
+        if: runner.os == 'Linux'
+        run: node --test packaging/npm/test/*.test.js
 
   mod:
     # The Claude Code mod's tests run inside Claude Code itself; no login needed.
