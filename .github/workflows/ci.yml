@@ -22,3 +22,14 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go build ./cmd/cuck
+
+  mod:
+    # The Claude Code mod's tests run inside Claude Code itself; no login needed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g @anthropic-ai/claude-code
+      - run: claude plugin test packaging/claude-code
