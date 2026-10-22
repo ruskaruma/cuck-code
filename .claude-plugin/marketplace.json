@@ -1,0 +1,11 @@
+{
+  "name": "cuck-code",
+  "owner": { "name": "Ishaan Sinha", "url": "https://github.com/ruskaruma" },
+  "plugins": [
+    {
+      "name": "cuck-code",
+      "source": "./packaging/claude-code",
+      "description": "Cuck Code inside Claude Code: an animated scene above the prompt while Claude works."
+    }
+  ]
+}

@@ -49,6 +49,9 @@ type Config struct {
 	HookAgents []string `json:"hook_agents"`
 	// HookExclude are built-in agents the shell hook should leave alone.
 	HookExclude []string `json:"hook_exclude"`
+	// ClaudeMod is false once the user has turned down the Claude Code mod,
+	// so upgrades stop offering it.
+	ClaudeMod *bool `json:"claude_mod"`
 }
 
 // Path returns the config file location.

@@ -119,6 +119,7 @@ func cmdSetup(args []string, cfg config.Config) int {
 			}
 		}
 		if refreshed {
+			offerMod(cfg, sys)
 			return 0
 		}
 	}
@@ -166,6 +167,14 @@ func cmdSetup(args []string, cfg config.Config) int {
 		}
 		fmt.Fprintln(out, "\n  Couldn't write the system files. Try `sudo cuck setup --system`, or `cuck setup --user`.")
 		return 1
+	}
+	// Claude Code plugins are per user, so a machine-wide setup leaves the mod to each user.
+	if !sys && haveClaudeCode() {
+		if err := installMod(); err != nil {
+			fmt.Fprintf(out, "  x Claude Code mod: %v\n", err)
+		} else {
+			fmt.Fprintln(out, "  + Claude Code mod (cuck-code)")
+		}
 	}
 	agent := hookAgents(cfg)[0]
 	if !sys {
@@ -220,8 +229,38 @@ func pitch(out io.Writer, targets []shellhook.Target, sys bool, cfg config.Confi
 	}
 	fmt.Fprintf(out, "  Applies to:      %s\n", who)
 	fmt.Fprintf(out, "  Shell files:     %s\n", strings.Join(files, ", "))
+	if !sys && haveClaudeCode() {
+		fmt.Fprintln(out, "  Claude Code:     the cuck-code mod too: a scene above the prompt, with sound, while Claude works")
+	}
 	fmt.Fprintln(out, "  Only interactive shells are affected; scripts and IDEs run agents as usual.")
 	fmt.Fprintln(out)
+}
+
+// offerMod asks an upgrading user, once, whether to add the Claude Code mod.
+// It never blocks an install: with no terminal to ask on, it says nothing.
+func offerMod(cfg config.Config, sys bool) {
+	if sys || (cfg.ClaudeMod != nil && !*cfg.ClaudeMod) || !haveClaudeCode() || modInstalled() {
+		return
+	}
+	in, out, err := tty.OpenConsole()
+	if err != nil {
+		return
+	}
+	defer in.Close()
+	fmt.Fprint(out, "\n  "+bold("New in Cuck Code:")+" it plays inside Claude Code too. She walks in when you send a prompt,\n"+
+		"  you hear them through the door while Claude works, and Claude walks out and winks when it's done.\n\n"+
+		"  Add it to Claude Code? [Y/n]\n  > ")
+	answer, _ := bufio.NewReader(in).ReadString('\n')
+	if a := strings.ToLower(strings.TrimSpace(answer)); a != "" && a != "y" && a != "yes" {
+		_ = config.Set("claude_mod", false)
+		fmt.Fprintln(out, "\n  Fine. `cuck setup` adds it any time.")
+		return
+	}
+	if err := installMod(); err != nil {
+		fmt.Fprintf(out, "\n  x Claude Code mod: %v\n", err)
+		return
+	}
+	fmt.Fprintln(out, "\n  + Claude Code mod. Start a new Claude Code session to see it. /cuck-quiet mutes it.")
 }
 
 // cmdUninstall removes the shell hook from every place it was installed.
@@ -249,6 +288,18 @@ func cmdUninstall(args []string, _ config.Config) int {
 			removed++
 			if !*quiet {
 				fmt.Printf("  - %s\n", tildify(t.Path))
+			}
+		}
+	}
+	if haveClaudeCode() && modInstalled() {
+		if err := removeMod(); err != nil {
+			if !*quiet {
+				fmt.Fprintf(os.Stderr, "  x Claude Code mod: %v (remove it with: claude plugin uninstall %s)\n", err, modPlugin)
+			}
+		} else {
+			removed++
+			if !*quiet {
+				fmt.Println("  - Claude Code mod (cuck-code)")
 			}
 		}
 	}

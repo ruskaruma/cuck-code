@@ -232,6 +232,14 @@ func cmdDoctor(_ []string, cfg config.Config) int {
 		say(false, "PowerShell's execution policy is %s, so the hook can't load. Fix: %s", p, bold(psPolicyFix))
 	}
 
+	if haveClaudeCode() && !isRoot() {
+		if modInstalled() {
+			say(true, "the Claude Code mod is installed (/cuck-quiet mutes it)")
+		} else {
+			fmt.Printf("  %s the Claude Code mod isn't installed; `cuck setup` adds it\n", mark(true))
+		}
+	}
+
 	if name := sound.PlayerName(); name != "" {
 		say(true, "sound plays through %s", name)
 	} else {

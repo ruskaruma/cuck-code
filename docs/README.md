@@ -7,6 +7,7 @@ Everything that doesn't fit in the [README](../README.md).
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [Sound](#sound)
+- [Inside Claude Code](#inside-claude-code)
 - [Troubleshooting](#troubleshooting)
 - [How it works](#how-it-works)
 - [Releasing](#releasing)
@@ -131,7 +132,7 @@ Run `cuck agents` to see which of these are installed on your machine and where 
 ### Uninstall
 
 ```bash
-cuck uninstall            # removes the hook from every shell file it was added to
+cuck uninstall            # removes the hook from every shell file, and the Claude Code mod
 npm uninstall -g cuck-code
 ```
 
@@ -245,6 +246,26 @@ The clips are built into the binary; there are no audio dependencies. cuck plays
 
 To use your own clip for the voice line, point `"sound_file"` at it. WAV works everywhere; MP3 and other formats need `afplay` (macOS), `ffplay` or `mpv` (Linux), or PowerShell (Windows).
 
+## Inside Claude Code
+
+The intro plays before Claude Code starts. The cuck-code **mod** plays inside it, in a strip above the prompt:
+
+1. **You send a prompt.** She walks in through the door, and a sock goes on the knob.
+2. **Claude works.** The door rattles in time with the bed, hearts drift out, and you hear them through the door: creaks, the headboard, her lines ("oh yeahh", "¡sí, papi!", "don't stop", "oh my god... Claude!") and now and then his ("who got the good d?"). Claude Code's spinner says things like "Waiting outside" instead of "Sauteing".
+3. **Claude finishes.** He walks out, turns to you with shiny eyes, winks and says, slowly, "who got... the good... d?". The strip fades and the closing line reads "Cucked for 32s" instead of "Baked for 32s".
+
+**`/cuck-quiet`** mutes it (and unmutes it); the setting is kept between sessions. Narrow terminals (under 40 columns), the VS Code extension and the desktop app show the captions without the pixel strip.
+
+**Installing.** `cuck setup` installs it when Claude Code is on your PATH, and an npm upgrade offers it once to people who set up an earlier version. On its own, at Claude Code's prompt:
+
+```text
+/plugin install cuck-code --marketplace ruskaruma/cuck-code
+```
+
+or from a shell: `claude plugin install cuck-code --marketplace ruskaruma/cuck-code`. It needs Claude Code 2.1.275 or later. `cuck uninstall` or `claude plugin uninstall cuck-code@cuck-code` removes it.
+
+**How it's built.** The mod lives in [`packaging/claude-code/`](../packaging/claude-code) and this repository is its marketplace ([`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json)). It's a Claude Code hooks module: `hooks/register.tsx` reacts to prompts and finished turns, rewrites the spinner and the closing line, and draws `hooks/scene.ts`'s pixel art into the band above the prompt at 30 frames a second. Sounds play through `afplay`, PipeWire, PulseAudio or ALSA. The voices were made with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0) and the bed sounds are synthesised; `sounds/gen.py` regenerates them all. Run its tests with `claude plugin test packaging/claude-code`, and try local changes with `claude --plugin-dir packaging/claude-code`. Users get a new version of the mod when its `version` in `.claude-plugin/plugin.json` goes up.
+
 ## Troubleshooting
 
 **Typing `claude` doesn't play the intro after setup.** Run `cuck doctor`: it opens a fresh shell behind the scenes and tells you exactly what `claude` resolves to and why. The usual cause is the terminal you installed from: it read its startup files before the hook existed, so run `source ~/.bashrc` / `source ~/.zshrc` there, or open a new terminal. Aliases (like the `alias claude=~/.claude/local/claude` Claude Code's installer adds) are handled automatically, even ones defined after the cuck-code block or in a file read later. If a shell *function* named after the agent is defined after the block, move the block to the end of the file.
@@ -280,6 +301,7 @@ internal/config/     config file
 internal/sound/      sound cues, embedded clips, per-OS players (gen/ synthesises the effects)
 docs/assets/         logo, demo GIF, screenshots
 packaging/npm/       npm package (launcher + all six binaries)
+packaging/claude-code/  the Claude Code mod (this repository is its marketplace)
 packaging/install.*  curl / PowerShell installers
 ```
 
