@@ -273,10 +273,26 @@ The scene follows what Claude does in between:
 | `/cuck quiet` | Mutes the sound, or brings it back. `/cuck-quiet` does the same. |
 | `/cuck sfw` | Safe for work: the same scene with clean lines ("ship it!", "who got the good code?"), typing instead of the bed, a do-not-disturb sign instead of the sock, and "Shipped for 32s". |
 | `/cuck meetings on\|off` | On (the default), it goes quiet and safe for work by itself while you're on a call: while your microphone is in use on Linux (PulseAudio or PipeWire) and Windows, and during a Zoom or FaceTime call on macOS. A call in a browser on macOS can't be seen, so use `/cuck sfw` for that. |
-| `/cuck skin auto\|halloween\|off` | Costumes. `auto` (the default) puts them on for the season: from Oct 24 to Nov 1 she's a witch, he's a vampire with red eyes, there's a jack-o'-lantern by the door and he asks "who got the good bite?". |
+| `/cuck skin auto\|halloween\|christmas\|valentine\|off` | Costumes. `auto` (the default) puts them on for the season. Halloween (Oct 24 to Nov 1): she's a witch, he's a vampire with red eyes, there's a jack-o'-lantern by the door and he asks "who got the good bite?". Christmas (Dec 18 to 26): an elf and Santa, a wreath on the door, snowflakes, "who got the good gift?". Valentine's (Feb 10 to 15): roses on the door, "be my valentine?". |
+| `/cuck lang mix\|en\|es\|pt\|fr\|it\|hi` | The language of her lines: `mix` (the default) is English and Spanish; the others are English, Spanish, Portuguese, French, Italian and Hindi. |
+| `/cuck cast she-he\|he-she\|he-he\|she-she` | Who walks in, then who Claude is. The default, `she-he`, is her and him. Every caption, voice and sprite follows: with `he-she` a guy walks in and Claude walks out a woman, winking, "who got it good?". |
+| `/cuck pack [name\|off]` | A voice pack: lines of your own, or someone else's. `/cuck pack` lists the installed ones. |
 | `/cuck stats` | What you've sat through: turns, time in the chair, the longest turn, friends over, yeses, refusals, test runs and achievements, as a card in the strip to screenshot. |
 | `/cuck badge` | A README badge of your time in the chair, copied to your clipboard: [![cucked for 3h 12m](https://img.shields.io/badge/cucked_for-3h_12m-ff5a6e)](https://github.com/ruskaruma/cuck-code) |
 | `/cuck trailer on\|off` | Off by default. On, Claude signs the commits it makes with a `Cucked-By: Claude` trailer, under its usual Co-Authored-By, and adds a line to its pull requests. Your own commits are never touched. |
+
+**Voice packs.** `cuck pack add owner/repo` installs one from GitHub (or `cuck pack add ./folder` from your disk), `cuck pack list` shows what's installed, and `cuck pack remove name` takes one away; then pick it in Claude Code with `/cuck pack name`. A pack is a folder (or repository) with a `pack.json` and `.wav` files next to it:
+
+```json
+{
+  "name": "Pirate",
+  "her": { "arr.wav": "arr, claude!", "ahoy.wav": "ahoy... ahoy!" },
+  "his": { "plank.wav": "claude: walk the plank" },
+  "wink": { "booty.wav": "claude: who got the good booty?" }
+}
+```
+
+`her` replaces her lines through the door, `his` his, and `wink` what he says to you at the end; any can be left out. Captions are cut to 60 characters. Packs aren't used in safe-for-work mode.
 
 **Achievements** pop up as you earn them, with a fanfare: First Time, Century (100 turns), Marathon (a 30-minute turn), Committed (24 hours all told), Full House (5 friends at once), Night Shift (a turn finishing between 2 and 5 am), Respect (Claude said no), Performance Issues, Screamer (tests passed 10 times), Enthusiastic Consent (25 yeses), Second Wind (a breather) and Family Building (the landlord came by).
 

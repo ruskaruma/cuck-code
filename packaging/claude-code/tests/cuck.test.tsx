@@ -485,6 +485,76 @@ test('with the trailer on, Claude signs its commits and pull requests', async ($
   expect((await $.attribution.text({ kind: 'remedy', text: 'x' })).text).toBe('x')
 })
 
+test('the cast: a guy walks in, Claude is a woman, and every line follows', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  expect((await $.command.run(command('cuck', 'cast he-she'))).text).toMatch(/he walks in, and Claude is her/)
+  await $.prompt.submit(PROMPT)
+  expect(await caption($)).not.toMatch(/\bshe\b/)
+  await clock.advance(40000)
+  expect(heard.sounds.filter(n => n.startsWith('her_') && !/^her_(goodit|mommy)/.test(n))).toEqual([])
+  expect(heard.sounds.some(n => n.startsWith('guy_'))).toBe(true)
+  await $.turn.complete(DONE)
+  await clock.advance(2200)
+  expect(heard.sounds.at(-1)).toBe('her_goodit')
+  expect(await caption($)).toBe('claude: who got it good?')
+})
+
+test('her lines in French', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  expect((await $.command.run(command('cuck', 'lang fr'))).text).toMatch(/French/)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(60000)
+  const hers = heard.sounds.filter(n => n.startsWith('her_'))
+  expect(hers.length).toBeGreaterThan(0)
+  expect(hers.every(n => n.startsWith('her_fr_'))).toBe(true)
+})
+
+test('Christmas: an elf, Santa, and the good gift', async ($, on) => {
+  const clock = mock.clock(on, { now: new Date(2026, 11, 20, 20, 0).getTime() })
+  mock.store(on)
+  const heard = engine(on)
+  await $.session.start(SESSION)
+  await $.prompt.submit(PROMPT)
+  await clock.advance(3000)
+  await $.turn.complete(DONE)
+  await clock.advance(2200)
+  expect(heard.sounds.at(-1)).toBe('him_goodgift')
+})
+
+test('a voice pack: its own lines, from where cuck pack add put it', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  mock.store(on)
+  const heard = engine(on, { env: { HOME: '/home/u' } })
+  const dir = '/home/u/.config/cuck-code/packs/pirate'
+  const read: string[] = []
+  on('fs.list', () => ({ value: [{ name: 'pirate', kind: 'dir', size: 0, mtimeMs: 0, isLink: false }] }))
+  on('fs.read', (_, e) => {
+    read.push(e.path)
+    const pack = { name: 'Pirate', her: { 'arr.wav': 'arr, claude!', '../evil.wav': 'no', 'x.mp3': 'no' }, wink: { 'booty.wav': 'claude: who got the good booty?' } }
+    return { value: JSON.stringify(pack) }
+  })
+  await $.session.start(SESSION)
+  expect((await $.command.run(command('cuck', 'pack'))).text).toMatch(/Voice packs: pirate/)
+  expect((await $.command.run(command('cuck', 'pack pirate'))).text).toBe('Voice pack: Pirate.')
+  expect(read).toEqual([`${dir}/pack.json`])
+  expect((await $.command.run(command('cuck', 'pack ../../etc'))).text).toMatch(/No voice pack/)
+
+  await $.prompt.submit(PROMPT)
+  await clock.advance(40000)
+  expect(heard.sounds).toContain('arr')
+  expect(heard.sounds).not.toContain('evil')
+  await $.turn.complete(DONE)
+  await clock.advance(2200)
+  expect(heard.sounds.at(-1)).toBe('booty')
+  expect(await caption($)).toBe('claude: who got the good booty?')
+})
+
 test('the spinner and the closing line are rewritten', async ($, on) => {
   on('ui.render', ($, e) => {
     const { Text } = $.ui.resolve(e)
@@ -495,7 +565,7 @@ test('the spinner and the closing line are rewritten', async ($, on) => {
     plugin: 'cuck-code', component: 'Spinner', requestId: 'main', surface: 'terminal',
     props: { word: 'Sauteing', message: null, suffix: '…', mode: 'thinking' },
   })
-  expect(await spinner.find({ type: 'Text', text: /chair|seat|work|listen|door|questions/ })).toBeDefined()
+  expect(await spinner.find({ type: 'Text', text: /seat|outside|work|listen|door|questions/ })).toBeDefined()
 
   const line = await $.ui.mount({
     plugin: 'cuck-code', component: 'TurnDuration', requestId: 'done', surface: 'terminal',

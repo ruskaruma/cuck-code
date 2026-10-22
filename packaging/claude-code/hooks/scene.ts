@@ -5,9 +5,12 @@
 import type { EventKind, Kind } from '../types'
 import type { Segment } from './stats'
 
-export type Skin = 'none' | 'halloween'
-// How the scene is dressed: the season's costumes, and whether it's safe for work.
-export type Look = { skin: Skin; sfw: boolean }
+export type Skin = 'none' | 'halloween' | 'christmas' | 'valentine'
+// Who walks in, then who Claude is: she-he is her and him.
+export type Cast = 'she-he' | 'he-she' | 'he-he' | 'she-she'
+// How the scene is dressed: the season's costumes, whether it's safe for
+// work, and the cast.
+export type Look = { skin: Skin; sfw: boolean; cast: Cast }
 
 // One frame: the clip, how far into it, and anything interrupting the busy loop.
 export type Shot = {
@@ -50,8 +53,8 @@ const DEFAULT = 0x01000000 // the terminal's own colour
 const CAPTION_X = 2
 
 const palette: Record<string, number> = {
-  // her
-  h: 0x2b1a14, s: 0xf1c3a0, r: 0xe0444d, k: 0x7d1820,
+  // her, and her dress in Claude's colour when she's Claude
+  h: 0x2b1a14, s: 0xf1c3a0, r: 0xe0444d, k: 0x7d1820, C: 0xd97757,
   // him: hair, skin, white tank top, its name tag, jeans, shoes, eyes and grin
   g: 0x4a2c1a, t: 0xd9a27c, w: 0xf2efe9, T: 0xe0444d, j: 0x3a5a8c, n: 0x2a2a2a, e: 0x1b1210, m: 0x7d1820,
   // the shine in his eyes, bright and dimmer as it twinkles
@@ -71,9 +74,13 @@ const palette: Record<string, number> = {
 
 // Costumes recolour the cast: for Halloween she's a witch in purple, and he's
 // a vampire, pale with slicked hair, red eyes and a cape lined in red.
+// For Christmas she's an elf in green and he's Santa, in red with a gold
+// buckle; for Valentine's he wears pink.
 const costumes: Record<Skin, Record<string, number>> = {
   none: {},
   halloween: { r: 0x6f3fa0, k: 0x2b2238, t: 0xe6ddd5, g: 0x2e2a3a, w: 0x3d3350, T: 0xb3121f, e: 0xc0182a, V: 0xff9a9a },
+  christmas: { r: 0x2e8b57, k: 0xc62828, w: 0xc62828, T: 0xf0b840, j: 0x8b1e1e },
+  valentine: { w: 0xff7aa8, T: 0xc62828 },
 }
 
 // Her, facing right, plus legs standing and mid-step.
@@ -94,8 +101,10 @@ const herLegs = [
   ['...s.s..', '...s.s..', '..kk.kk.'],
   ['...s..s.', '..s...s.', '.kk...kk'],
 ]
-// The witch's hat: two rows above her head, and its brim over her hair.
+// The witch's hat: two rows above her head, and its brim over her hair. The
+// elf's the same way.
 const hat = ['.....B..', '....BB..', '.BBBuBBB']
+const elfHat = ['......x.', '....LL..', '..LLLLL.']
 
 // Him, facing left as he walks out, plus legs standing and mid-step.
 const him = [
@@ -140,6 +149,29 @@ const faces: Record<'open' | 'wink', [string, string, string, string]> = {
   open: ['.tWettWet.', '.teetteet.', '.tttttttt.', '..tmmmmt..'],
   wink: ['.tWettttt.', '.teetteee.', '.tmttttmt.', '..tmmmmt..'],
 }
+
+// Her, turned to face you, when Claude is a woman. Rows 3-6 are her face.
+const herFront = [
+  '..hhhhhh..',
+  '.hhhhhhhh.',
+  'hhsssssshh',
+  'hsWessWesh',
+  'hseesseesh',
+  'hssssssssh',
+  'hhsmmmmshh',
+  'hh.ssss.hh',
+  'sCCCCCCCCs',
+  'sCCCCCCCCs',
+  'sCCCCCCCCs',
+  '.CCCCCCCC.',
+  '..CCCCCC..',
+  '...s..s...',
+  '..kk..kk..',
+]
+const herFaces: Record<'open' | 'wink', [string, string, string, string]> = {
+  open: ['hsWessWesh', 'hseesseesh', 'hssssssssh', 'hhsmmmmshh'],
+  wink: ['hsWesssssh', 'hseesseeeh', 'hsmssssmsh', 'hhsmmmmshh'],
+}
 const sparkle = ['.*.', '*.*', '.*.']
 
 const heart = ['.H.H.', 'HHHHH', '.HHH.', '..H..']
@@ -150,6 +182,9 @@ const sock = ['xx.', 'XX.', 'xx.', 'xxx']
 const sign = ['.S.', 'SSS', 'SXS', 'SSS']
 const noEntry = ['.NNN.', 'NxxxN', '.NNN.']
 const pumpkin = ['..L..', '.OOO.', 'OyOyO', 'OOOOO']
+const wreath = ['.LLL.', 'L...L', 'L.X.L', '.LLL.']
+const rose = ['HH.', 'HHH', '.L.', 'LL.']
+const snowflake = ['x.x', '.x.', 'x.x']
 const pizza = ['PPPP', 'DDDD']
 const clipboard = ['xx', 'xx', 'aa']
 const sun = ['..UUUU..', '.UUUUUU.', 'UUUUUUUU', 'UUUUUUUU', '.UUUUUU.', '..UUUU..']
@@ -157,6 +192,8 @@ const sun = ['..UUUU..', '.UUUUUU.', 'UUUUUUUU', 'UUUUUUUU', '.UUUUUU.', '..UUUU
 // Who else walks through the door, as him in other clothes: his friends,
 // the pizza guy in red, the landlord in a grey suit with a tie.
 const FRIENDS = [{ g: 'l', w: 'E', T: 'E' }, { g: 'v', w: 'J', T: 'J' }, { g: 'f', w: 'K', T: 'K' }]
+// When a guy walks in instead of her: dark hair, a shirt the colour of her dress.
+const GUEST_MAN = { g: 'v', w: 'r', T: 'r' }
 const PIZZA_GUY = { g: 'R', w: 'R', T: 'x' }
 const LANDLORD = { g: 't', w: 'A', T: 'J', j: 'a' }
 
@@ -164,6 +201,8 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 const ramp = (t: number, from: number, to: number) => clamp((t - from) / (to - from), 0, 1)
 const mirror = (rows: readonly string[]) => rows.map(r => [...r].reverse().join(''))
 const recolour = (rows: readonly string[], swap: Record<string, string>) => rows.map(r => r.replace(/./g, ch => swap[ch] ?? ch))
+const guestIsMan = (look: Look) => look.cast === 'he-she' || look.cast === 'he-he'
+const claudeIsWoman = (look: Look) => look.cast === 'he-she' || look.cast === 'she-she'
 
 class Canvas {
   w: number
@@ -195,27 +234,66 @@ function dim(c: number, f: number): number {
   return (r << 16) | (g << 8) | b
 }
 
-// Her, walking right (or left), mid-step or not; for Halloween in her hat;
-// the morning after, barefoot with her shoes in her hand. Drawn from the top
-// of her hat, two pixels above her head.
-function drawHer(cv: Canvas, look: Look, x: number, step: number, opts: { left?: boolean; clipRight?: number; shoes?: boolean; towel?: boolean } = {}) {
+type Walk = { left?: boolean; clipRight?: number; shoes?: boolean; towel?: boolean }
+
+// Her, walking right (or left), mid-step or not; in her hat for Halloween or
+// Christmas; the morning after, barefoot with her shoes in her hand; in
+// Claude's colour (`dress`) when she's Claude. Drawn from the top of her hat,
+// two pixels above her head.
+function drawHer(cv: Canvas, look: Look, x: number, step: number, opts: Walk & { dress?: string } = {}) {
   const legs = (herLegs[step % 2] ?? []).map(r => (opts.shoes ? r.replace(/k/g, 's') : r))
-  const rows = her.concat(legs)
+  let rows = her.concat(legs)
   if (opts.towel) rows[6] = '..xxxxx.'
-  if (look.skin === 'halloween') rows[0] = hat[2] ?? ''
-  const drawn = opts.left ? mirror(rows) : rows
+  const hats = look.skin === 'halloween' ? hat : look.skin === 'christmas' ? elfHat : null
+  if (hats) rows[0] = hats[2] ?? ''
+  if (opts.dress) rows = recolour(rows, { r: opts.dress })
   const clipRight = opts.clipRight ?? Infinity
-  if (look.skin === 'halloween') cv.sprite(opts.left ? mirror(hat.slice(0, 2)) : hat.slice(0, 2), x, 0, 1, clipRight)
-  cv.sprite(drawn, x, 2, 1, clipRight)
+  if (hats) cv.sprite(opts.left ? mirror(hats.slice(0, 2)) : hats.slice(0, 2), x, 0, 1, clipRight)
+  cv.sprite(opts.left ? mirror(rows) : rows, x, 2, 1, clipRight)
   if (opts.shoes) cv.sprite(['kk'], opts.left ? x - 1 : x + 7, 10)
 }
 
 // A man in profile, walking: him, or anyone in his clothes. Facing left by
 // default.
-function drawMan(cv: Canvas, x: number, step: number, opts: { swap?: Record<string, string>; right?: boolean; clipRight?: number; y?: number } = {}) {
-  let rows = him.concat(himLegs[step % 2] ?? [])
+function drawMan(
+  cv: Canvas,
+  x: number,
+  step: number,
+  opts: { swap?: Record<string, string>; right?: boolean; clipRight?: number; y?: number; santa?: boolean; barefoot?: boolean } = {},
+) {
+  let rows = him.concat((himLegs[step % 2] ?? []).map(r => (opts.barefoot ? r.replace(/n/g, 't') : r)))
   if (opts.swap) rows = recolour(rows, opts.swap)
+  if (opts.santa) [rows[0], rows[1]] = ['.xRRRR..', '.xxxxxx.']
   cv.sprite(opts.right ? mirror(rows) : rows, x, opts.y ?? 1, 1, opts.clipRight ?? Infinity)
+}
+
+// Whoever walks in: her, or a guy, as the cast has it. Facing right unless
+// `left`.
+function drawGuest(cv: Canvas, look: Look, x: number, step: number, opts: Walk = {}) {
+  if (!guestIsMan(look)) return drawHer(cv, look, x, step, opts)
+  const swap = opts.towel ? { ...GUEST_MAN, g: 'x' } : GUEST_MAN
+  drawMan(cv, x, step, { swap, right: !opts.left, clipRight: opts.clipRight ?? Infinity, barefoot: opts.shoes === true })
+  if (opts.shoes) cv.sprite(['nn'], opts.left ? x - 1 : x + 7, 10)
+}
+
+// Claude in profile: him (Santa for Christmas), or her in Claude's colour.
+// Facing left unless `right`.
+function drawClaude(cv: Canvas, look: Look, x: number, step: number, opts: { right?: boolean; towel?: boolean; y?: number } = {}) {
+  if (claudeIsWoman(look)) return drawHer(cv, look, x, step, { left: opts.right !== true, dress: 'C', towel: opts.towel === true })
+  const man: Parameters<typeof drawMan>[3] = { right: opts.right === true, santa: look.skin === 'christmas' && !opts.towel, y: opts.y ?? 1 }
+  if (opts.towel) man.swap = { g: 'x' }
+  drawMan(cv, x, step, man)
+}
+
+// Claude turned to face you, shiny eyes twinkling, winking or not.
+function drawClaudeFront(cv: Canvas, look: Look, x: number, t: number, winking: boolean) {
+  const woman = claudeIsWoman(look)
+  const rows = (woman ? herFront : himFront).slice()
+  ;[rows[3], rows[4], rows[5], rows[6]] = (woman ? herFaces : faces)[winking ? 'wink' : 'open']
+  if (!woman && look.skin === 'halloween') rows[6] = '..tFmmFt..' // a vampire grins with his fangs
+  if (!woman && look.skin === 'christmas') [rows[0], rows[1]] = ['...RRRRRx.', '.xxxxxxxx.']
+  const twinkle = Math.floor(t / 150) % 3 === 2
+  cv.sprite(twinkle ? rows.map(r => r.replace(/W/g, 'V')) : rows, x, 1)
 }
 
 // open: 0 closed, 1 wide open. shake: the door rattles in its frame. The knob
@@ -236,17 +314,20 @@ function drawDoor(cv: Canvas, look: Look, x0: number, open: number, shake: numbe
       cv.set(x0 + x + (x > 0 && x <= panel ? shake : 0), y, cv.colours[ch] ?? 0)
     }
   }
+  if (open === 0 && look.skin === 'christmas') cv.sprite(wreath, x0 + 2 + shake, 2)
+  if (open === 0 && look.skin === 'valentine') cv.sprite(rose, x0 + 3 + shake, 3)
   if (hanging && open === 0) cv.sprite(look.sfw ? sign : sock, x0 + 6 + shake, 9)
 }
 
 // Columns of door panel still across the doorway.
 const doorPanel = (open: number) => Math.round((1 - open) * 7) + 1
 
-// What drifts out of the room: hearts, bats among them for Halloween, and
-// green checks when it's safe for work.
+// What drifts out of the room: hearts, with bats among them for Halloween
+// and snowflakes for Christmas, and green checks when it's safe for work.
 function floater(look: Look, n: number): readonly string[] {
   if (look.sfw) return check
-  return look.skin === 'halloween' && n % 2 === 1 ? bat : heart
+  if (n % 2 === 0) return heart
+  return look.skin === 'halloween' ? bat : look.skin === 'christmas' ? snowflake : heart
 }
 
 function drawFloaters(cv: Canvas, look: Look, doorX: number, t: number, period: number) {
@@ -257,14 +338,15 @@ function drawFloaters(cv: Canvas, look: Look, doorX: number, t: number, period: 
   }
 }
 
-// His head and a hand round the door, asking you for a yes. out: 0 still
-// inside, 1 all the way out.
-function drawPeek(cv: Canvas, doorX: number, open: number, out: number, t: number) {
+// Claude's head and a hand round the door, asking you for a yes. out: 0
+// still inside, 1 all the way out.
+function drawPeek(cv: Canvas, look: Look, doorX: number, open: number, out: number, t: number) {
   const edge = doorX + doorPanel(open)
   const x = edge - 3 + Math.round((1 - out) * 4)
-  const head = him.slice(0, 7)
+  const woman = claudeIsWoman(look)
+  const head = woman ? ['..hhh...', '.hhhhh..', '.ssshh..', '.esshh..', '.ss.hh..', '..s..h..'] : him.slice(0, 7)
   // Big pleading eyes: the shine comes and goes.
-  if (Math.floor(t / 300) % 2 === 0) head[3] = '.Wtttgg.'
+  if (Math.floor(t / 300) % 2 === 0) head[3] = woman ? '.Wsshh..' : '.Wtttgg.'
   cv.sprite(head, x, 3 + (Math.floor(t / 600) % 2), 1, doorX + 9) // never past the door frame
   if (out > 0.5) cv.sprite(['tt'], edge, 10)
 }
@@ -286,14 +368,14 @@ function drawEvent(cv: Canvas, look: Look, doorX: number, kind: EventKind, t: nu
       // He leans out to ask you; the room goes quiet while he waits.
       const open = ramp(t, 0, 250) * 0.5
       drawDoor(cv, look, doorX, open, 0, false)
-      drawPeek(cv, doorX, open, ramp(t, 150, 450), t)
+      drawPeek(cv, look, doorX, open, ramp(t, 150, 450), t)
       return
     }
     case 'yes': {
       // Back in he goes, and the door shuts behind him.
       const open = 0.5 * (1 - ramp(t, 250, 500))
       drawDoor(cv, look, doorX, open, 0, open === 0)
-      if (t < 400) drawPeek(cv, doorX, open, 1 - ramp(t, 0, 300), t)
+      if (t < 400) drawPeek(cv, look, doorX, open, 1 - ramp(t, 0, 300), t)
       return
     }
     case 'slam':
@@ -323,9 +405,9 @@ function drawEvent(cv: Canvas, look: Look, doorX: number, kind: EventKind, t: nu
       const pant = Math.floor(t / 400) % 2
       if (t > 300 && t < 4700) {
         const hx = out(500, 1100, hisX)
-        drawMan(cv, hx, t < 1100 || t > 3800 ? step : 0, { swap: { g: 'x' }, right: t > 3800, y: 1 + (t > 1100 && t < 3800 ? pant : 0) })
+        drawClaude(cv, look, hx, t < 1100 || t > 3800 ? step : 0, { right: t > 3800, towel: true, y: 1 + (t > 1100 && t < 3800 ? pant : 0) })
         if (t > 1100 && t < 3800) cv.sprite(['Z', 'Z', 'Z'], hx - 1, 8)
-        drawHer(cv, look, out(300, 900, herX), t < 900 || t > 3800 ? step : 0, { left: t <= 3800, towel: true })
+        drawGuest(cv, look, out(300, 900, herX), t < 900 || t > 3800 ? step : 0, { left: t <= 3800, towel: true })
       }
       return
     }
@@ -385,7 +467,7 @@ export function frame(shot: Shot): Uint32Array {
     const open = ramp(t, 650, 850) - ramp(t, 1150, 1350)
     drawDoor(cv, look, doorX, open, 0, t > 1350)
     const x = Math.round(-9 + ramp(t, 0, 1100) * (doorX + 12))
-    if (t < 1150) drawHer(cv, look, x, step, { clipRight: open > 0.5 ? Infinity : doorX + 1 })
+    if (t < 1150) drawGuest(cv, look, x, step, { clipRight: open > 0.5 ? Infinity : doorX + 1 })
     if (t > 1300) {
       const rise = Math.floor(ramp(t, 1300, 1800) * 6)
       cv.sprite(floater(look, 1), doorX - 7, 7 - rise, 1 - ramp(t, 1550, 1800))
@@ -412,19 +494,14 @@ export function frame(shot: Shot): Uint32Array {
   } else if (kind === 'card') {
     // Your stats, boxed, and him beside them, winking at you.
     const width = shot.card?.[0]?.reduce((n, [text]) => n + text.length, 0) ?? 0
-    if (columns >= width + 12) {
-      const rows = himFront.slice()
-      ;[rows[3], rows[4], rows[5], rows[6]] = Math.floor(t / 1400) % 3 === 2 ? faces.wink : faces.open
-      if (look.skin === 'halloween') rows[6] = '..tFmmFt..'
-      cv.sprite(Math.floor(t / 150) % 3 === 2 ? rows.map(r => r.replace(/W/g, 'V')) : rows, width + 2, 1)
-    }
+    if (columns >= width + 12) drawClaudeFront(cv, look, width + 2, t, Math.floor(t / 1400) % 3 === 2)
     fade = 1 - ramp(t, 14000, 15000)
   } else if (kind === 'morning') {
     // The morning after: the sun comes up and she lets herself out, shoes in hand.
     cv.sprite(sun, 4, Math.round(14 - ramp(t, 0, 2500) * 12), 0.9)
     const open = ramp(t, 300, 600) - ramp(t, 1900, 2200)
     drawDoor(cv, look, doorX, open, 0, false)
-    if (t > 450) drawHer(cv, look, Math.round(doorX + 1 - ramp(t, 600, 3800) * (doorX + 12)), step, { left: true, shoes: true })
+    if (t > 450) drawGuest(cv, look, Math.round(doorX + 1 - ramp(t, 600, 3800) * (doorX + 12)), step, { left: true, shoes: true })
     fade = 1 - ramp(t, 4100, 4600)
   } else {
     // A last rattle; he walks out, stops, turns to you and winks. His friends
@@ -441,16 +518,10 @@ export function frame(shot: Shot): Uint32Array {
       if (t >= from && t < from + 1300) drawMan(cv, Math.round(doorX + 1 - ramp(t, from, from + 1300) * (doorX + 11)), step + i, { swap: FRIENDS[i] })
     }
     if (t >= 700 && t < 1500) {
-      drawMan(cv, Math.round(doorX + 1 - ramp(t, 700, 1500) * (doorX + 1 - stopX)), step)
+      drawClaude(cv, look, Math.round(doorX + 1 - ramp(t, 700, 1500) * (doorX + 1 - stopX)), step)
     } else if (t >= 1500) {
       const winking = t > WINK_AT
-      const rows = himFront.slice()
-      ;[rows[3], rows[4], rows[5], rows[6]] = winking ? faces.wink : faces.open
-      // A vampire grins with his fangs.
-      if (look.skin === 'halloween') rows[6] = '..tFmmFt..'
-      // The shine twinkles.
-      const twinkle = Math.floor(t / 150) % 3 === 2
-      cv.sprite(twinkle ? rows.map(r => r.replace(/W/g, 'V')) : rows, stopX - 1, 1)
+      drawClaudeFront(cv, look, stopX - 1, t, winking)
       if (Math.floor(t / 180) % 2 === 0) cv.sprite(sparkle, winking ? stopX + 9 : stopX - 4, winking ? 1 : 2)
     }
     fade = 1 - ramp(t, 4500, 5000)

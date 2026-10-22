@@ -61,6 +61,9 @@ her = 0.6 * k.get_voice_style('af_bella') + 0.4 * k.get_voice_style('af_nicole')
 dora = k.get_voice_style('ef_dora')
 puck = k.get_voice_style('am_puck')
 him = 0.7 * puck + 0.3 * k.get_voice_style('am_michael')
+guy = k.get_voice_style('am_liam')  # when a guy walks in instead of her
+claudia = 0.5 * k.get_voice_style('af_sarah') + 0.5 * k.get_voice_style('af_sky')  # Claude as a woman
+pf, ff, it, hi = (k.get_voice_style(v) for v in ('pf_dora', 'ff_siwis', 'if_sara', 'hf_alpha'))
 for name, text, style, lang, speed, filters in [
     # Through the door, while Claude works.
     ('her_yeah', 'Ohh... yeah. Oh, yeahh!', her, 'en-us', 0.82, BEHIND_DOOR),
@@ -100,6 +103,51 @@ for name, text, style, lang, speed, filters in [
     ('pizza', 'Pizza delivery!', k.get_voice_style('am_eric'), 'en-us', 1.0, TO_YOU),
     ('neighbour', 'Keep it down in there!', k.get_voice_style('bm_george'), 'en-gb', 1.0, THROUGH_WALL),
     ('landlord', 'This is a family building!', k.get_voice_style('am_onyx'), 'en-us', 0.9, TO_YOU),
+    # Her lines in other languages (/cuck lang).
+    ('her_es_nopares', '¡No pares! ¡No pares!', dora, 'es', 0.9, BEHIND_DOOR),
+    ('her_pt_isso', 'Isso, papai!', pf, 'pt-br', 0.9, BEHIND_DOOR),
+    ('her_pt_naopara', 'Não para! Não para!', pf, 'pt-br', 0.9, BEHIND_DOOR),
+    ('her_pt_ai', 'Ai, que delícia!', pf, 'pt-br', 0.85, BEHIND_DOOR),
+    ('her_pt_vai', 'Vai, Claude!', pf, 'pt-br', 0.9, BEHIND_DOOR),
+    ('her_fr_oui', 'Oh oui! Oui!', ff, 'fr-fr', 0.85, BEHIND_DOOR),
+    ('her_fr_encore', 'Encore! Encore!', ff, 'fr-fr', 0.9, BEHIND_DOOR),
+    ('her_fr_ohlala', 'Oh là là!', ff, 'fr-fr', 0.85, BEHIND_DOOR),
+    ('her_fr_arrete', "Ne t'arrête pas!", ff, 'fr-fr', 0.9, BEHIND_DOOR),
+    ('her_it_si', 'Sì! Sì! Sì!', it, 'it', 0.9, BEHIND_DOOR),
+    ('her_it_ancora', 'Ancora! Ancora!', it, 'it', 0.9, BEHIND_DOOR),
+    ('her_it_mamma', 'Mamma mia!', it, 'it', 0.85, BEHIND_DOOR),
+    ('her_it_fermarti', 'Non fermarti!', it, 'it', 0.9, BEHIND_DOOR),
+    ('her_hi_haan', 'हाँ, हाँ, हाँ!', hi, 'hi', 0.9, BEHIND_DOOR),
+    ('her_hi_rukomat', 'रुको मत!', hi, 'hi', 0.9, BEHIND_DOOR),
+    ('her_hi_wahin', 'वहीं... वहीं पे!', hi, 'hi', 0.85, BEHIND_DOOR),
+    ('her_hi_uff', 'उफ़, क्लॉड!', hi, 'hi', 0.85, BEHIND_DOOR),
+    # When a guy walks in instead (/cuck cast he-she, he-he).
+    ('guy_yeah', 'Oh yeah! Oh yeah!', guy, 'en-us', 0.9, BEHIND_DOOR),
+    ('guy_dontstop', "Don't stop! Don't stop!", guy, 'en-us', 0.9, BEHIND_DOOR),
+    ('guy_omg', 'Oh my god... Claude!', guy, 'en-us', 0.85, BEHIND_DOOR),
+    ('guy_yes', 'Yes! Yes! Yes!', guy, 'en-us', 0.95, BEHIND_DOOR),
+    ('guy_ohhi', 'Oh... hi?', guy, 'en-us', 0.85, BEHIND_DOOR),
+    ('guy_water', 'Water... I need water.', guy, 'en-us', 0.8, TO_YOU),
+    ('guy_scream', 'Yes! Yes! YES!', guy, 'en-us', 1.05, f'{TRIM},{DOOR},loudnorm=I=-15:TP=-1.5'),
+    ('guy_shipit', 'Ship it! Ship it!', guy, 'en-us', 0.95, BEHIND_DOOR),
+    ('guy_lgtm', 'Looks good to me!', guy, 'en-us', 0.9, BEHIND_DOOR),
+    ('guy_green', 'Yes! All green!', guy, 'en-us', 0.9, BEHIND_DOOR),
+    ('guy_merge', 'Merge it!', guy, 'en-us', 0.9, BEHIND_DOOR),
+    ('guy_coffee', 'Coffee break!', guy, 'en-us', 0.9, TO_YOU),
+    # When Claude is a woman (/cuck cast he-she, she-she).
+    ('her_goodit', 'Who got... it... good?', claudia, 'en-us', 0.7, TO_YOU),
+    ('her_goodit_door', 'Who got it good?', claudia, 'en-us', 0.95, BEHIND_DOOR),
+    ('her_mommy_door', "Who's your mommy?", claudia, 'en-us', 0.95, BEHIND_DOOR),
+    ('her_yespapi', 'Can I get a yes, papi?', claudia, 'en-us', 0.85, TO_YOU),
+    ('her_canigetayes', 'Can I get a yes?', claudia, 'en-us', 0.85, TO_YOU),
+    ('her_goodcode', 'Who got... the good... code?', claudia, 'en-us', 0.7, TO_YOU),
+    ('her_senior_door', "Trust me, I'm a senior engineer.", claudia, 'en-us', 0.95, BEHIND_DOOR),
+    # Christmas and Valentine's.
+    ('him_goodgift', 'Who got... the good... gift?', him, 'en-us', 0.68, TO_YOU),
+    ('him_hohoho', 'Ho ho ho!', k.get_voice_style('am_santa'), 'en-us', 0.85, BEHIND_DOOR),
+    ('her_santa', 'Oh, Santa Claude!', her, 'en-us', 0.85, BEHIND_DOOR),
+    ('him_valentine', 'Be my... valentine?', him, 'en-us', 0.72, TO_YOU),
+    ('her_valentine', "Happy Valentine's, Claude!", her, 'en-us', 0.9, BEHIND_DOOR),
 ]:
     say(name, text, style, lang, speed, filters)
 

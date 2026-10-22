@@ -10,8 +10,9 @@ import { atom, read, update } from 'claude-code'
 import type { Register, Timer } from 'claude-code'
 
 import type { Clip, EventKind, Kind } from '../types'
-import { TEST_COMMAND, linesFor, season } from './lines'
-import type { Look, Shot, Skin } from './scene'
+import type { Lang, Pack } from './lines'
+import { LANGS, TEST_COMMAND, linesFor, readPack, season } from './lines'
+import type { Cast, Look, Shot, Skin } from './scene'
 import { DURATION, MAX_COLUMNS, MIN_COLUMNS, ROWS, WINK_AT, encode, eventDuration, frame, pick } from './scene'
 import type { Stats } from './stats'
 import { EMPTY, award, badge, card, restoreStats, summary } from './stats'
@@ -52,8 +53,23 @@ type Settings = {
   skin: 'auto' | Skin // costumes: auto follows the calendar
   meetings: boolean // go quiet and safe for work while you're on a call
   trailer: boolean // sign Claude's commits "Cucked-By: Claude"
+  lang: Lang // the language of her lines
+  cast: Cast // who walks in, and who Claude is
+  pack: string | null // a voice pack, by its folder's name
 }
-const DEFAULTS: Settings = { quiet: false, sfw: false, skin: 'auto', meetings: true, trailer: false }
+const DEFAULTS: Settings = { quiet: false, sfw: false, skin: 'auto', meetings: true, trailer: false, lang: 'mix', cast: 'she-he', pack: null }
+const SKINS: readonly Skin[] = ['none', 'halloween', 'christmas', 'valentine']
+const CASTS: readonly Cast[] = ['she-he', 'he-she', 'he-he', 'she-she']
+const LANG_NAMES: Record<Lang, string> = {
+  mix: 'English and Spanish', en: 'English', es: 'Spanish', pt: 'Portuguese', fr: 'French', it: 'Italian', hi: 'Hindi',
+}
+const CAST_NAMES: Record<Cast, string> = {
+  'she-he': 'she walks in, and Claude is him',
+  'he-she': 'he walks in, and Claude is her',
+  'he-he': 'he walks in, and Claude is him',
+  'she-she': 'she walks in, and Claude is her',
+}
+const oneOf = <T extends string>(xs: readonly T[], v: unknown): v is T => typeof v === 'string' && (xs as readonly string[]).includes(v)
 
 // Settings as saved, checked field by field: anything unknown keeps its default.
 function restore(saved: unknown, legacyQuiet: unknown): Settings {
@@ -64,7 +80,10 @@ function restore(saved: unknown, legacyQuiet: unknown): Settings {
   if (typeof o.sfw === 'boolean') s.sfw = o.sfw
   if (typeof o.meetings === 'boolean') s.meetings = o.meetings
   if (typeof o.trailer === 'boolean') s.trailer = o.trailer
-  if (o.skin === 'auto' || o.skin === 'none' || o.skin === 'halloween') s.skin = o.skin
+  if (o.skin === 'auto' || oneOf(SKINS, o.skin)) s.skin = o.skin
+  if (oneOf(LANGS, o.lang)) s.lang = o.lang
+  if (oneOf(CASTS, o.cast)) s.cast = o.cast
+  if (typeof o.pack === 'string' && /^[\w.-]+$/.test(o.pack)) s.pack = o.pack
   return s
 }
 
@@ -75,7 +94,10 @@ function help(s: Settings): string {
     'Cuck Code',
     `  /cuck quiet               mute or unmute the sound (now ${s.quiet ? 'muted' : 'playing'})`,
     `  /cuck sfw                 safe for work: the same scene, clean lines (now ${onOff(s.sfw)})`,
-    `  /cuck skin auto|halloween|off   costumes; auto puts them on for the season (now ${s.skin})`,
+    `  /cuck skin auto|halloween|christmas|valentine|off   costumes; auto puts them on for the season (now ${s.skin})`,
+    `  /cuck lang mix|en|es|pt|fr|it|hi   the language of her lines (now ${s.lang})`,
+    `  /cuck cast she-he|he-she|he-he|she-she   who walks in, then who Claude is (now ${s.cast})`,
+    `  /cuck pack [name|off]     a voice pack: \`cuck pack add owner/repo\` installs one (now ${s.pack ?? 'none'})`,
     `  /cuck meetings on|off     go quiet and safe for work while you're on a call (now ${onOff(s.meetings)})`,
     '  /cuck stats               what you\'ve sat through, and your achievements',
     '  /cuck badge               a README badge of your time in the chair',
@@ -105,12 +127,27 @@ function configure(s: Settings, args: string): [Settings, string] {
       return [{ ...s, trailer }, trailer ? 'Claude signs its commits "Cucked-By: Claude" now.' : "Claude's commits go unsigned again."]
     }
     case 'skin':
-      if (value === 'auto') return [{ ...s, skin: 'auto' }, 'Costumes follow the calendar: Halloween from Oct 24 to Nov 1.']
-      if (value === 'halloween') return [{ ...s, skin: 'halloween' }, 'Halloween: she came as a witch, he came as a vampire.']
+      if (value === 'auto') return [{ ...s, skin: 'auto' }, "Costumes follow the calendar: Halloween from Oct 24, Christmas from Dec 18, Valentine's from Feb 10."]
+      if (value === 'halloween') return [{ ...s, skin: 'halloween' }, 'Halloween: a witch and a vampire.']
+      if (value === 'christmas') return [{ ...s, skin: 'christmas' }, 'Christmas: an elf and Santa.']
+      if (value === 'valentine') return [{ ...s, skin: 'valentine' }, "Valentine's: roses on the door."]
       if (value === 'off' || value === 'none') return [{ ...s, skin: 'none' }, 'No costumes.']
-      return [s, `Skins: auto, halloween, off (now ${s.skin}).`]
+      return [s, `Skins: auto, halloween, christmas, valentine, off (now ${s.skin}).`]
+    case 'lang':
+      if (oneOf(LANGS, value)) return [{ ...s, lang: value }, `Her lines are in ${LANG_NAMES[value]} now.`]
+      return [s, `Languages: ${LANGS.map(l => `${l} (${LANG_NAMES[l]})`).join(', ')}. Now ${s.lang}.`]
+    case 'cast':
+      if (oneOf(CASTS, value)) return [{ ...s, cast: value }, `The cast: ${CAST_NAMES[value]}.`]
+      return [s, `Casts: ${CASTS.map(c => `${c} (${CAST_NAMES[c]})`).join('; ')}. Now ${s.cast}.`]
   }
   return [s, help(s)]
+}
+
+// Where `cuck pack add` puts voice packs: next to cuck's own config file.
+function packsFolder(os: Os, env: { config?: string; xdg?: string; home?: string; appData?: string }): string {
+  if (env.config) return `${env.config.replace(/[\\/][^\\/]*$/, '')}/packs`
+  const base = os === 'windows' ? env.appData : os === 'mac' ? `${env.home}/Library/Application Support` : env.xdg || `${env.home}/.config`
+  return `${base}/cuck-code/packs`
 }
 
 // The words Claude Code's dialog uses when you turn a tool call down.
@@ -130,7 +167,7 @@ export const register: Register = on => {
   let meeting = false
   let checkedAt = -Infinity
   let band: { requestId: string; columns: number } | null = null
-  let spinnerWord = pick(linesFor({ skin: 'none', sfw: false }).spinner)
+  let spinnerWord = pick(linesFor({ skin: 'none', sfw: false, cast: 'she-he' }).spinner)
   let current: Clip | null = null
   let cue = 0 // the clip's sounds played so far
   let working = false
@@ -149,6 +186,8 @@ export const register: Register = on => {
   let lastVoice = ''
   let queue: Ev[] = []
   let stats: Stats = { ...EMPTY, earned: {} }
+  let pack: Pack | null = null
+  let packs = ''
   // Set up in session.start, as they reach the engine: keep the clock running
   // while a clip plays, play a sound, keep the stats, show a toast.
   let kick = () => {}
@@ -159,8 +198,9 @@ export const register: Register = on => {
   const lookAt = (now: number): Look => ({
     skin: settings.skin === 'auto' ? season(new Date(now)) : settings.skin,
     sfw: settings.sfw || meeting,
+    cast: settings.cast,
   })
-  const linesAt = (now: number) => linesFor(lookAt(now), model)
+  const linesAt = (now: number) => linesFor(lookAt(now), model, settings.lang, pack)
   const muted = () => settings.quiet || meeting
 
   // Counts something you sat through, and hands out what it earned.
@@ -256,7 +296,7 @@ export const register: Register = on => {
       look,
       caption: busy ? speech.text || c.caption : c.caption,
       captionAge: busy ? now - speech.since : t,
-      wink: linesFor(look, model).wink[1],
+      wink: linesFor(look, model, settings.lang, pack).wink[1],
       friends,
     }
     if (busy && ev && ev.at > 0) shot.event = { kind: ev.kind, t: now - ev.at, count: ev.count }
@@ -329,8 +369,10 @@ export const register: Register = on => {
 
   // Each step on its own: one that fails mustn't take the show down with it.
   on('session.start', async ($, e, next) => {
+    // A clip by name from sounds/, or a voice pack's file by its path.
     play = name => {
-      void $.process.run(playerArgv(os, `${$.plugin.root}/sounds/${name}.wav`), { timeoutMs: 10000 }).catch(() => {})
+      const file = /[\\/]/.test(name) ? name : `${$.plugin.root}/sounds/${name}.wav`
+      void $.process.run(playerArgv(os, file), { timeoutMs: 10000 }).catch(() => {})
     }
     save = () => {
       void $.store.set('stats', stats).catch(() => {})
@@ -377,11 +419,22 @@ export const register: Register = on => {
     const windows = await $.env.get('OS').then(v => v === 'Windows_NT', () => false)
     const uname = windows ? null : await $.process.run(['uname'], { timeoutMs: 5000 }).catch(() => null)
     os = windows ? 'windows' : uname?.stdout.trim() === 'Darwin' ? 'mac' : 'linux'
+    const env = async (read: Promise<string | undefined>) => read.catch(() => undefined)
+    packs = packsFolder(os, {
+      config: await env($.env.get('CUCK_CONFIG')),
+      xdg: await env($.env.get('XDG_CONFIG_HOME')),
+      home: await env($.env.get('HOME')),
+      appData: await env($.env.get('APPDATA')),
+    })
+    if (settings.pack !== null) {
+      const name = settings.pack
+      pack = await $.fs.read(`${packs}/${name}/pack.json`).then(json => readPack(`${packs}/${name}`, name, json), () => null)
+    }
     await $.command
       .register({
         name: 'cuck',
         description: 'Cuck Code: quiet, safe for work, costumes',
-        argumentHint: 'stats | badge | quiet | sfw | skin auto|halloween|off | meetings on|off | trailer on|off',
+        argumentHint: 'stats | badge | quiet | sfw | skin | lang | cast | pack | meetings | trailer',
         immediate: true,
       })
       .catch(() => {})
@@ -410,6 +463,31 @@ export const register: Register = on => {
         kick()
       }
       return { text: ['Cuck Code', ...summary(stats, sfw).map(l => `  ${l}`)].join('\n') }
+    }
+    if (what === 'pack' || what.startsWith('pack ')) {
+      const name = what.slice(4).trim()
+      const installed = await $.fs.list(packs).then(
+        entries => entries.filter(f => f.kind === 'dir').map(f => f.name),
+        () => [] as string[],
+      )
+      if (name === '') {
+        const list = installed.length > 0 ? installed.join(', ') : 'none yet'
+        return { text: `Voice packs: ${list}. Now: ${settings.pack ?? 'none'}.\nAdd one with \`cuck pack add owner/repo\` in a terminal, then /cuck pack <name>.` }
+      }
+      if (name === 'off' || name === 'none') {
+        settings = { ...settings, pack: null }
+        pack = null
+        await $.store.set('settings', settings)
+        return { text: 'No voice pack: the usual lines.' }
+      }
+      const loaded = /^[\w.-]+$/.test(name)
+        ? await $.fs.read(`${packs}/${name}/pack.json`).then(json => readPack(`${packs}/${name}`, name, json), () => null)
+        : null
+      if (loaded === null) return { text: `No voice pack called "${name}" in ${packs}. Installed: ${installed.join(', ') || 'none'}.` }
+      settings = { ...settings, pack: name }
+      pack = loaded
+      await $.store.set('settings', settings)
+      return { text: `Voice pack: ${loaded.name}.` }
     }
     if (what === 'badge') {
       const md = badge(stats, sfw)
@@ -582,6 +660,6 @@ export const register: Register = on => {
   )
 
   on('ui.render', { component: 'TurnDuration' }, ($, e, next) =>
-    next({ ...e, props: { ...e.props, word: linesFor({ skin: 'none', sfw: settings.sfw || meeting }).done } }),
+    next({ ...e, props: { ...e.props, word: linesFor({ skin: 'none', sfw: settings.sfw || meeting, cast: settings.cast }).done } }),
   )
 }
