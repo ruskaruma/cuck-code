@@ -95,11 +95,22 @@ func Script(shell string, agents []string, self string) (string, error) {
 			fmt.Fprintf(&b, "%s=${%s:-%s}\n", v, v, a)
 		}
 		b.WriteString("__cuck_take\n")
+		// A function the user already wrote for an agent (claude() { ...; })
+		// is kept as __cuck_user_<agent> and still runs, after the intro.
+		// typeset -f works in bash 3.2 and zsh; our own wrapper, from a hook
+		// loaded twice, is the one that mentions __cuck_bin.
+		b.WriteString("__cuck_keep() {\n  local d\n")
 		for _, a := range agents {
-			v := "__cuck_t_" + varName(a)
+			fmt.Fprintf(&b, "  d=$(typeset -f %s 2>/dev/null); case $d in ''|*__cuck_bin*) ;; *) eval \"__cuck_user_%s${d#%s}\"; __cuck_f_%s=1 ;; esac\n", a, varName(a), a, varName(a))
+		}
+		b.WriteString("}\n__cuck_keep\n")
+		for _, a := range agents {
+			v, n := "__cuck_t_"+varName(a), varName(a)
+			// With a kept function: play the intro (Ctrl+C there cancels),
+			// then run the function. Otherwise cuck launches the agent itself.
 			// Without cuck, run the alias target in a subshell where the
 			// wrapper is gone, so `claude` can't call itself.
-			fmt.Fprintf(&b, "function %s { local c; c=$(__cuck_bin); if [ -n \"$c\" ]; then \"$c\" --hooked --agent \"$%s\" -- \"$@\"; else (unset -f %s; eval \"$%s \\\"\\$@\\\"\"); fi; }\n", a, v, a, v)
+			fmt.Fprintf(&b, "function %s { local c; c=$(__cuck_bin); if [ -n \"${__cuck_f_%s:-}\" ]; then if [ -n \"$c\" ]; then \"$c\" --hooked --intro-only --agent %s -- \"$@\" || [ $? -ne 130 ] || return 130; fi; __cuck_user_%s \"$@\"; elif [ -n \"$c\" ]; then \"$c\" --hooked --agent \"$%s\" -- \"$@\"; else (unset -f %s; eval \"$%s \\\"\\$@\\\"\"); fi; }\n", a, n, a, n, v, a, v)
 		}
 		if shell == "zsh" {
 			b.WriteString("__cuck_first() { __cuck_take; precmd_functions=(${precmd_functions:#__cuck_first}); }\n")

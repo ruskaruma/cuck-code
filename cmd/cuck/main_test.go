@@ -59,3 +59,12 @@ func TestSplitArgs(t *testing.T) {
 		}
 	}
 }
+
+// The shell hook runs --intro-only in front of a user's own function for the
+// agent: it plays the show (if any) and returns without launching anything.
+func TestIntroOnlyNeverLaunches(t *testing.T) {
+	t.Setenv("CUCK_CONFIG", t.TempDir()+"/config.json")
+	if code := run([]string{"--intro-only", "--no-animation", "--agent", "definitely-not-an-agent-9f3a"}); code != 0 {
+		t.Errorf("run --intro-only = %d, want 0", code)
+	}
+}

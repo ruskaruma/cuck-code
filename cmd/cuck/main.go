@@ -87,11 +87,14 @@ func run(args []string) int {
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	// --hooked marks a launch from the shell hook, i.e. the user typed the agent's name directly.
 	hooked := fs.Bool("hooked", false, "")
+	// --intro-only plays the intro and exits without launching anything: the
+	// shell hook runs it in front of the user's own shell function for the agent.
+	introOnly := fs.Bool("intro-only", false, "")
 	fs.Usage = func() {
 		out := fs.Output()
 		fmt.Fprint(out, usage)
 		fs.VisitAll(func(f *flag.Flag) {
-			if f.Name != "hooked" {
+			if f.Name != "hooked" && f.Name != "intro-only" {
 				fmt.Fprintf(out, "  -%s\n    \t%s\n", f.Name, f.Usage)
 			}
 		})
@@ -139,8 +142,9 @@ func run(args []string) int {
 		fmt.Println(cmd.String())
 		return 0
 	}
-	// Fail before the show, not after it.
-	if err := cmd.Check(); err != nil {
+	// Fail before the show, not after it. A shell function launches the agent
+	// after --intro-only, so there's nothing on PATH to check then.
+	if err := cmd.Check(); err != nil && !*introOnly {
 		if *hooked {
 			fmt.Fprintf(os.Stderr, "%s: command not found\n", name) // what the shell would have said
 		} else {
@@ -169,6 +173,9 @@ func run(args []string) int {
 		case err != nil:
 			fmt.Fprintln(os.Stderr, "cuck: animation:", err)
 		}
+	}
+	if *introOnly {
+		return 0
 	}
 
 	code, err := runner.Exec(cmd)

@@ -129,6 +129,7 @@ func TestHookInRealShells(t *testing.T) {
 }
 
 func testShell(t *testing.T, sh string) {
+	const wrapper = `claude() { FOO=wrapped command claude "$@"; }`
 	cases := []struct{ name, before, after, typed, want string }{
 		{"plain", "", "", "claude -x", "cuck --hooked --agent claude -- -x"},
 		{"dashed name", "", "", "kiro-cli 'two words'", "cuck --hooked --agent kiro-cli -- two words"},
@@ -139,6 +140,11 @@ func testShell(t *testing.T, sh string) {
 		{"bypass", "", "", "command claude -x", "claude -x"},
 		{"cuck uninstalled", "", "", "rm CUCK; claude -x", "claude -x"},
 		{"cuck uninstalled, alias", "alias claude='FOO=1 LOCAL'", "", "rm CUCK; claude -x", "local claude -x FOO=1"},
+		// A wrapper function the user wrote keeps running, after the intro.
+		{"function above the hook", wrapper, "", "claude -x", "cuck --hooked --intro-only --agent claude -- -x\nclaude -x FOO=wrapped"},
+		{"function, hook loaded twice", wrapper, `eval "$(cat HOOK)"`, "claude -x", "cuck --hooked --intro-only --agent claude -- -x\nclaude -x FOO=wrapped"},
+		{"function, intro cancelled", wrapper, "", "FAKE_EXIT=130 claude -x; echo rc=$?", "cuck --hooked --intro-only --agent claude -- -x\nrc=130"},
+		{"function, cuck uninstalled", wrapper, "", "rm CUCK; claude -x", "claude -x FOO=wrapped"},
 	}
 	for _, c := range cases {
 		dir := t.TempDir()
@@ -152,7 +158,7 @@ func testShell(t *testing.T, sh string) {
 			}
 		}
 		cuck := filepath.Join(dir, "cuck", "cuck") // off PATH: only the remembered path finds it
-		write(cuck, "#!/bin/sh\necho \"cuck $*\"\n", 0o755)
+		write(cuck, "#!/bin/sh\necho \"cuck $*\"\nexit ${FAKE_EXIT:-0}\n", 0o755)
 		write(filepath.Join(bin, "claude"), "#!/bin/sh\necho \"claude $*${FOO:+ FOO=$FOO}\"\n", 0o755)
 		write(filepath.Join(bin, "kiro-cli"), "#!/bin/sh\necho \"kiro-cli $*\"\n", 0o755)
 		write(filepath.Join(local, "claude"), "#!/bin/sh\necho \"local claude $*${FOO:+ FOO=$FOO}\"\n", 0o755)
