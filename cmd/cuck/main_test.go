@@ -2,9 +2,35 @@ package main
 
 import (
 	"flag"
+	"os"
 	"reflect"
 	"testing"
+
+	"github.com/ruskaruma/cuck-code/internal/config"
 )
+
+// setStdin points os.Stdin at f for the rest of the test.
+func setStdin(t *testing.T, f *os.File) {
+	old := os.Stdin
+	os.Stdin = f
+	t.Cleanup(func() { os.Stdin = old })
+}
+
+// `echo prompt | agent` runs the agent non-interactively, and keys typed
+// during the show would go nowhere, so it must not wait for the intro.
+func TestNoIntroWhenStdinIsPiped(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { r.Close(); w.Close() })
+	setStdin(t, r)
+	t.Setenv("CUCK_NO_ANIMATION", "")
+	t.Setenv("TERM", "xterm-256color")
+	if shouldAnimate(false, config.Config{}) {
+		t.Error("shouldAnimate = true with stdin piped, want false")
+	}
+}
 
 func TestSplitArgs(t *testing.T) {
 	fs := flag.NewFlagSet("t", flag.ContinueOnError)
