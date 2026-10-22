@@ -3,6 +3,7 @@
 package sound
 
 import (
+	"os"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -23,6 +24,10 @@ func start(path string) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x00000008} // DETACHED_PROCESS
 	_ = cmd.Start()
 }
+
+// ownedByCurrentUser reports whether fi belongs to the user running cuck. It
+// always does on Windows, where the temp dir is per user.
+func ownedByCurrentUser(os.FileInfo) bool { return true }
 
 // PlayerName is the program sounds play through.
 func PlayerName() string { return "PowerShell" }

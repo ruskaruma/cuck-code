@@ -3,9 +3,11 @@
 package sound
 
 import (
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+	"syscall"
 )
 
 // player returns the command line that plays path, or nil if nothing can.
@@ -44,6 +46,12 @@ func start(path string) {
 	}
 	cmd := exec.Command("/bin/sh", append([]string{"-c", `trap '' HUP; "$@" >/dev/null 2>&1 &`, "sh"}, argv...)...)
 	_ = cmd.Run()
+}
+
+// ownedByCurrentUser reports whether fi belongs to the user running cuck.
+func ownedByCurrentUser(fi os.FileInfo) bool {
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	return ok && int(st.Uid) == os.Getuid()
 }
 
 // PlayerName is the program sounds play through, or "" if there is none.
