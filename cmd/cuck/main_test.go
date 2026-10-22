@@ -2,9 +2,35 @@ package main
 
 import (
 	"flag"
+	"os"
 	"reflect"
 	"testing"
+
+	"github.com/ruskaruma/cuck-code/internal/config"
 )
+
+// setStdin points os.Stdin at f for the rest of the test.
+func setStdin(t *testing.T, f *os.File) {
+	old := os.Stdin
+	os.Stdin = f
+	t.Cleanup(func() { os.Stdin = old })
+}
+
+// `echo prompt | agent` runs the agent non-interactively, and keys typed
+// during the show would go nowhere, so it must not wait for the intro.
+func TestNoIntroWhenStdinIsPiped(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { r.Close(); w.Close() })
+	setStdin(t, r)
+	t.Setenv("CUCK_NO_ANIMATION", "")
+	t.Setenv("TERM", "xterm-256color")
+	if shouldAnimate(false, config.Config{}) {
+		t.Error("shouldAnimate = true with stdin piped, want false")
+	}
+}
 
 func TestSplitArgs(t *testing.T) {
 	fs := flag.NewFlagSet("t", flag.ContinueOnError)
@@ -31,5 +57,29 @@ func TestSplitArgs(t *testing.T) {
 		if !reflect.DeepEqual(own, tt.own) || !reflect.DeepEqual(rest, tt.rest) {
 			t.Errorf("splitArgs(%q) = %q, %q; want %q, %q", tt.args, own, rest, tt.own, tt.rest)
 		}
+	}
+}
+
+// The shell hook runs --intro-only in front of a user's own function for the
+// agent: it plays the show (if any) and returns without launching anything.
+func TestIntroOnlyNeverLaunches(t *testing.T) {
+	t.Setenv("CUCK_CONFIG", t.TempDir()+"/config.json")
+	if code := run([]string{"--intro-only", "--no-animation", "--agent", "definitely-not-an-agent-9f3a"}); code != 0 {
+		t.Errorf("run --intro-only = %d, want 0", code)
+	}
+}
+
+// A typo in the config's colour must not stop every agent from launching:
+// a broken config file only gets a warning, and so should a bad value.
+func TestBadConfigColourFallsBackToAuto(t *testing.T) {
+	opts, err := animationOptions(config.Config{Color: "256color"}, 0, 0, "")
+	if err != nil {
+		t.Fatalf("animationOptions with a bad config colour: %v", err)
+	}
+	if !opts.ColorAuto {
+		t.Error("a bad config colour should fall back to auto-detection")
+	}
+	if _, err := animationOptions(config.Config{}, 0, 0, "256color"); err == nil {
+		t.Error("a bad --color flag should still be an error")
 	}
 }

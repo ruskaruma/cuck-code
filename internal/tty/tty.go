@@ -49,6 +49,15 @@ func (t *Terminal) Restore() {
 	t.restoreOnce.Do(t.restore)
 }
 
+// StopSignals are the signals that ask a foreground job to stop (Ctrl+Z).
+// There are none on Windows.
+var StopSignals = stopSignals
+
+// Suspend puts the terminal back as it was found and stops the process, as
+// Ctrl+Z does by default; once the shell continues it (fg), it quietens the
+// terminal again.
+func (t *Terminal) Suspend() { t.suspend() }
+
 // IsTerminal reports whether f is attached to an interactive terminal.
 func IsTerminal(f *os.File) bool { return isTerminal(f) }
 

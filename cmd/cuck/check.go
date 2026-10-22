@@ -174,13 +174,7 @@ func cmdDoctor(_ []string, cfg config.Config) int {
 		fmt.Printf("  %s cuck isn't on PATH in this shell; the hook falls back to %s\n", mark(true), tildify(self))
 	}
 
-	targets := shellhook.Leftovers(isRoot())
-	var hooked []shellhook.Target
-	for _, t := range targets {
-		if t.Installed() {
-			hooked = append(hooked, t)
-		}
-	}
+	hooked := hookedTargets(shellhook.Leftovers)
 	if len(hooked) == 0 {
 		say(false, "the hook isn't installed. Run: %s", bold("cuck setup"))
 	} else {
@@ -240,10 +234,9 @@ func cmdDoctor(_ []string, cfg config.Config) int {
 		}
 	}
 
-	if name := sound.PlayerName(); name != "" {
-		say(true, "sound plays through %s", name)
-	} else {
-		fmt.Printf("  %s no audio player found, so the intro will be silent\n", mark(true))
+	fmt.Printf("  %s %s\n", mark(true), soundStatus(cfg))
+	for _, p := range configProblems(cfg) {
+		say(false, "%s", p)
 	}
 	mode := animation.DetectColorMode(os.Getenv, runtime.GOOS == "windows")
 	fmt.Printf("  %s colours: %s\n", mark(true), mode)
@@ -282,4 +275,40 @@ func cmdDemo(args []string, cfg config.Config) int {
 		return 1
 	}
 	return 0
+}
+
+// hookedTargets returns the startup files that hold the hook: the user's and
+// the machine-wide ones, since `cuck setup --system` hooks everyone.
+func hookedTargets(leftovers func(system bool) []shellhook.Target) []shellhook.Target {
+	var hooked []shellhook.Target
+	seen := map[string]bool{}
+	for _, system := range []bool{false, true} {
+		for _, t := range leftovers(system) {
+			if !seen[t.Path] && t.Installed() {
+				seen[t.Path] = true
+				hooked = append(hooked, t)
+			}
+		}
+	}
+	return hooked
+}
+
+// soundStatus describes whether and how the intro makes noise.
+func soundStatus(cfg config.Config) string {
+	if !wantSound(cfg, false, false) {
+		return `sound is off (CUCK_SOUND or "sound" in the config)`
+	}
+	if name := sound.PlayerName(); name != "" {
+		return "sound plays through " + name
+	}
+	return "no audio player found, so the intro will be silent"
+}
+
+// configProblems lists the config values cuck can't use.
+func configProblems(cfg config.Config) []string {
+	var problems []string
+	if _, _, err := animation.ParseColorMode(cfg.Color); err != nil {
+		problems = append(problems, fmt.Sprintf(`"color" in %s: %v`, tildify(config.Path()), err))
+	}
+	return problems
 }

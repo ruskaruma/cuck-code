@@ -16,10 +16,12 @@ import {
 const clip = atom({ plugin: 'cuck-code', key: 'clip' } as const, null)
 
 // Plays a clip with whatever is on the machine: afplay on macOS, PipeWire,
-// PulseAudio or ALSA on Linux.
+// PulseAudio or ALSA on Linux. With none of them it exits 127, as the shell
+// does for a command it cannot find, so a caller can tell nothing played.
 const PLAYER =
   'if command -v afplay >/dev/null; then afplay "$1"; elif command -v pw-play >/dev/null; then pw-play "$1"; ' +
-  'elif command -v paplay >/dev/null; then paplay "$1"; elif command -v aplay >/dev/null; then aplay -q "$1"; fi'
+  'elif command -v paplay >/dev/null; then paplay "$1"; elif command -v aplay >/dev/null; then aplay -q "$1"; ' +
+  'else exit 127; fi'
 
 export const register: Register = on => {
   let ticker: Timer | null = null
@@ -161,8 +163,13 @@ export const register: Register = on => {
       })
     })
     if (!quiet) {
+      // process.run resolves whatever the exit code, so a player that is
+      // missing or failed is turned into a rejection to reach the fallback.
       void $.process
         .run(['sh', '-c', PLAYER, 'sh', `${$.plugin.root}/sounds/ding.wav`], { timeoutMs: 10000 })
+        .then(r => {
+          if (r.exitCode !== 0) throw new Error(`no player played the ding (exit ${r.exitCode})`)
+        })
         .catch(() => $.audio.play({ asset: 'sounds/ding.wav' }))
         .catch(() => {})
     }

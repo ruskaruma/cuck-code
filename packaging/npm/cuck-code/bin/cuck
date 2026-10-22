@@ -3,7 +3,8 @@
 
 // Launcher for the native cuck binary. On macOS and Linux the postinstall
 // script replaces this file with the binary itself, so this only runs on
-// Windows or when install scripts were disabled.
+// Windows, under pnpm (whose shims start this file with node), or when
+// install scripts were disabled.
 const { spawnSync } = require("child_process");
 const { binaryPath } = require("../lib/resolve.js");
 

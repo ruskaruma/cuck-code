@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/ruskaruma/cuck-code/internal/config"
 	"github.com/ruskaruma/cuck-code/internal/shellhook"
@@ -114,7 +115,9 @@ func cmdSetup(args []string, cfg config.Config) int {
 		refreshed := false
 		for _, t := range targets {
 			if t.Installed() {
-				_ = t.Install(selfPath()) // upgrade in place
+				if err := t.Install(selfPath()); err != nil { // upgrade in place
+					fmt.Fprintf(os.Stderr, "cuck: couldn't update the hook in %s: %v\n", tildify(t.Path), err)
+				}
 				refreshed = true
 			}
 		}
@@ -125,11 +128,15 @@ func cmdSetup(args []string, cfg config.Config) int {
 	}
 
 	in, out := io.Reader(os.Stdin), io.Writer(os.Stdout)
+	openedConsole := false
 	if *fromNPM || !tty.IsTerminal(os.Stdin) {
 		cin, cout, err := tty.OpenConsole()
 		switch {
 		case err == nil:
-			defer cin.Close()
+			openedConsole = true
+			// Left open: a timed-out ask leaves a read pending on it, and on
+			// Windows closing the console waits for that read. The process
+			// exits right after setup anyway.
 			in, out = cin, cout
 		case *fromNPM:
 			fmt.Fprintln(os.Stderr, "cuck-code installed. Run `cuck setup` to get cucked.")
@@ -144,7 +151,11 @@ func cmdSetup(args []string, cfg config.Config) int {
 	if !*yes {
 		// The answer goes on its own line: package-manager spinners redraw the current one.
 		fmt.Fprint(out, "  "+bold("Do you really want to get cucked?")+" [y/N]\n  > ")
-		answer, _ := bufio.NewReader(in).ReadString('\n')
+		answer, ok := ask(in, answerTimeout(*fromNPM, openedConsole))
+		if !ok {
+			fmt.Fprintln(out, "\n  No answer, so no. Run `cuck setup` if you change your mind.")
+			return 0
+		}
 		if a := strings.ToLower(strings.TrimSpace(answer)); a != "y" && a != "yes" {
 			fmt.Fprintln(out, "\n  Probably wise. Run `cuck setup` if you change your mind.")
 			return 0
@@ -169,7 +180,10 @@ func cmdSetup(args []string, cfg config.Config) int {
 		return 1
 	}
 	// Claude Code plugins are per user, so a machine-wide setup leaves the mod to each user.
-	if !sys && haveClaudeCode() {
+	if sys {
+		fmt.Fprintln(out, "  Claude Code plugins are per user: anyone who wants the mod can add it in Claude Code with")
+		fmt.Fprintln(out, "    /plugin install "+modName+" --marketplace "+modMarketplace())
+	} else if haveClaudeCode() {
 		if err := installMod(); err != nil {
 			fmt.Fprintf(out, "  x Claude Code mod: %v\n", err)
 		} else {
@@ -186,7 +200,7 @@ func cmdSetup(args []string, cfg config.Config) int {
 	} else {
 		fmt.Fprintf(out, "  Open a new terminal and type `%s`.\n", agent)
 	}
-	fmt.Fprintln(out, "  Watch it right now with "+bold("cuck demo")+". Skip it once with `command "+agent+"`. Undo with `cuck uninstall`.")
+	fmt.Fprintln(out, "  Watch it right now with "+bold("cuck demo")+". Skip it once with `"+bypassHint(userShell(targets), agent)+"`. Undo with `cuck uninstall`.")
 	return 0
 }
 
@@ -246,11 +260,16 @@ func offerMod(cfg config.Config, sys bool) {
 	if err != nil {
 		return
 	}
-	defer in.Close()
+	// Left open, as in cmdSetup: closing it could wait on a timed-out ask.
 	fmt.Fprint(out, "\n  "+bold("New in Cuck Code:")+" it plays inside Claude Code too. She walks in when you send a prompt,\n"+
 		"  you hear them through the door while Claude works, and Claude walks out and winks when it's done.\n\n"+
 		"  Add it to Claude Code? [Y/n]\n  > ")
-	answer, _ := bufio.NewReader(in).ReadString('\n')
+	answer, ok := ask(in, scriptAnswerTimeout)
+	if !ok {
+		// Nobody there: don't install it unasked, and don't record a no either.
+		fmt.Fprintln(out, "\n  No answer. `cuck setup` adds it any time.")
+		return
+	}
 	if a := strings.ToLower(strings.TrimSpace(answer)); a != "" && a != "y" && a != "yes" {
 		_ = config.Set("claude_mod", false)
 		fmt.Fprintln(out, "\n  Fine. `cuck setup` adds it any time.")
@@ -261,6 +280,31 @@ func offerMod(cfg config.Config, sys bool) {
 		return
 	}
 	fmt.Fprintln(out, "\n  + Claude Code mod. Start a new Claude Code session to see it. /cuck-quiet mutes it.")
+}
+
+// scriptAnswerTimeout is how long an install waits for an answer. A terminal
+// can exist with nobody at it (docker run -t, ssh -t in a script), and the
+// install must still finish.
+const scriptAnswerTimeout = time.Minute
+
+// ask reads one line of answer from in. It reports false if timeout (when
+// above zero) passes first.
+func ask(in io.Reader, timeout time.Duration) (string, bool) {
+	if timeout <= 0 {
+		answer, _ := bufio.NewReader(in).ReadString('\n')
+		return answer, true
+	}
+	got := make(chan string, 1)
+	go func() {
+		answer, _ := bufio.NewReader(in).ReadString('\n')
+		got <- answer
+	}()
+	select {
+	case answer := <-got:
+		return answer, true
+	case <-time.After(timeout):
+		return "", false
+	}
 }
 
 // cmdUninstall removes the shell hook from every place it was installed.
@@ -342,4 +386,26 @@ func tildify(p string) string {
 		return "~" + p[len(home):]
 	}
 	return p
+}
+
+// bypassHint is how to run agent once without the intro in shell. It goes
+// through cuck rather than around it (`command claude`), because an agent
+// installed as an alias isn't on PATH for `command` to find.
+func bypassHint(shell, agent string) string {
+	if shell == "powershell" {
+		return "$env:CUCK_NO_ANIMATION=1; " + agent + "; Remove-Item Env:CUCK_NO_ANIMATION"
+	}
+	return "CUCK_NO_ANIMATION=1 " + agent
+}
+
+// answerTimeout is how long setup waits for its question to be answered.
+// A package manager or an installer script runs setup with stdin redirected,
+// so setup asks on the terminal itself, and nobody may be at it (ssh -t,
+// docker run -t): those runs give up after scriptAnswerTimeout. Run by hand,
+// setup waits as long as it takes.
+func answerTimeout(fromNPM, openedConsole bool) time.Duration {
+	if fromNPM || openedConsole {
+		return scriptAnswerTimeout
+	}
+	return 0
 }

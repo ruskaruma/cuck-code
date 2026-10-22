@@ -1,6 +1,7 @@
 package sound
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -38,5 +39,38 @@ func TestExtract(t *testing.T) {
 	}
 	if again := p.extract(Voice); again != path {
 		t.Errorf("second extract = %q", again)
+	}
+}
+
+// A WAV's size depends only on its length, so a clip a release re-records at
+// the same length must still replace the copy cached by the last release.
+func TestExtractReplacesAChangedClip(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("LocalAppData", t.TempDir())
+	base, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := clips.ReadFile("clips/" + Ding + ".wav")
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := bytes.Clone(want)
+	old[len(old)-1] ^= 0xff // same size, different sound
+	dir := filepath.Join(base, "cuck-code", "sounds")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cached := filepath.Join(dir, Ding+".wav")
+	if err := os.WriteFile(cached, old, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if path := New(true, "").extract(Ding); path != cached {
+		t.Fatalf("extract = %q, want %q", path, cached)
+	}
+	if got, err := os.ReadFile(cached); err != nil || !bytes.Equal(got, want) {
+		t.Errorf("cached clip of the same size was kept (err %v); it should be the new clip", err)
 	}
 }

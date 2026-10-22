@@ -87,7 +87,7 @@ $ cuck setup
 What it does:
 
 - It adds a small, clearly marked block to your shell startup files. The block asks `cuck` for a wrapper function for each agent. Supported shells are **bash**, **zsh**, **fish** and **PowerShell** (both 7 and Windows PowerShell 5.1).
-- It only affects **interactive** shells. Scripts, cron jobs, CI, IDE integrations and other programs that run `claude` or `codex` are untouched.
+- It only affects **interactive** shells. Scripts, cron jobs, CI, IDE integrations and other programs that run `claude` or `codex` are untouched, even when they start bash, zsh or fish with its startup files (`bash -l -c`, `fish -c`). PowerShell is the exception: it also loads profiles for `pwsh -File` and `pwsh -Command`, so scripts that run an agent should pass `-NoProfile`.
 - Agents that aren't installed are fine to list. You get the usual `command not found`.
 - It is safe to run again. Running `setup` twice never duplicates anything, and npm upgrades refresh the hook without asking again.
 
@@ -97,14 +97,16 @@ What it does:
 | `--system` | hook every user on the machine: `/etc/bash.bashrc` or `/etc/bashrc`, `/etc/zsh/zshrc` or `/etc/zshrc`, `/etc/fish/conf.d`, and the all-users PowerShell profile. Needs root/Administrator. This is the default when run as root. |
 | `--user` | only the current user, even when running as root |
 
-Quick commands, like `claude --version`, `codex exec ...`, `claude -p ...`, `gemini mcp ...`, `update`, `login` and `help`, skip the intro and run immediately.
+Quick commands, like `claude --version`, `codex exec ...`, `claude -p ...`, `gemini mcp ...`, `update`, `login` and `help`, skip the intro and run immediately, and so does an agent given piped input, like `cat prompt.md | gemini`.
 
 **Skipping the intro once:**
 
 ```bash
-command claude                                    # bash, zsh, fish
-& (Get-Command claude -CommandType Application)   # PowerShell
+CUCK_NO_ANIMATION=1 claude                                          # bash, zsh, fish
+$env:CUCK_NO_ANIMATION=1; claude; Remove-Item Env:CUCK_NO_ANIMATION  # PowerShell
 ```
+
+This works however the agent is installed. `command claude` also skips the intro, but only for an agent on your PATH: it ignores aliases, so it can't find Claude Code's local install (`alias claude=~/.claude/local/claude`).
 
 While the intro is playing, **any key** jumps to the wink, a second key skips the rest, and **Ctrl+C** cancels without launching the agent.
 
@@ -268,7 +270,7 @@ or from a shell: `claude plugin install cuck-code --marketplace ruskaruma/cuck-c
 
 ## Troubleshooting
 
-**Typing `claude` doesn't play the intro after setup.** Run `cuck doctor`: it opens a fresh shell behind the scenes and tells you exactly what `claude` resolves to and why. The usual cause is the terminal you installed from: it read its startup files before the hook existed, so run `source ~/.bashrc` / `source ~/.zshrc` there, or open a new terminal. Aliases (like the `alias claude=~/.claude/local/claude` Claude Code's installer adds) are handled automatically, even ones defined after the cuck-code block or in a file read later. If a shell *function* named after the agent is defined after the block, move the block to the end of the file.
+**Typing `claude` doesn't play the intro after setup.** Run `cuck doctor`: it opens a fresh shell behind the scenes and tells you exactly what `claude` resolves to and why. The usual cause is the terminal you installed from: it read its startup files before the hook existed, so run `source ~/.bashrc` / `source ~/.zshrc` there, or open a new terminal. Aliases (like the `alias claude=~/.claude/local/claude` Claude Code's installer adds) are handled automatically, even ones defined after the cuck-code block or in a file read later. So is a shell *function* you wrote for the agent (`claude() { ...; command claude "$@"; }`) when it comes before the block: it still runs, right after the intro. If such a function is defined after the block, move the block to the end of the file.
 
 **npm never asked me the question.** npm can't prompt when there's no terminal (CI, some IDE terminals). pnpm, Bun and Yarn don't run install scripts unless you approve them, and neither does npm with `--ignore-scripts`. In either case, run `cuck setup` yourself.
 

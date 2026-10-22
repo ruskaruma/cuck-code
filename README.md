@@ -45,14 +45,14 @@ irm https://raw.githubusercontent.com/ruskaruma/cuck-code/main/packaging/install
 claude                          # after setup: the intro plays, then Claude Code opens
 cuck codex --full-auto          # or launch any agent through cuck directly
 cuck setup                      # get cucked later / cuck uninstall to undo it
-command claude                  # skip the intro once
+CUCK_NO_ANIMATION=1 claude      # skip the intro once
 ```
 
 Any key skips ahead during the intro, and Ctrl+C cancels. Config, every flag, the full list of supported agents and troubleshooting are in the [docs](docs/README.md).
 
 ## Inside Claude Code
 
-`cuck setup` also adds a Claude Code mod: she walks in when you send a prompt, a sock goes on the door while Claude works, and Claude walks out and winks at you when it's done. To add just the mod, type this at Claude Code's prompt:
+`cuck setup` also adds a Claude Code mod (for you; a machine-wide `cuck setup --system` leaves it to each user): she walks in when you send a prompt, a sock goes on the door while Claude works, and Claude walks out and winks at you when it's done. To add just the mod, type this at Claude Code's prompt:
 
 ```text
 /plugin install cuck-code --marketplace ruskaruma/cuck-code

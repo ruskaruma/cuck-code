@@ -13,6 +13,9 @@ func (t *Terminal) size() (int, int, error) { return 0, 0, ErrNotTerminal }
 func (t *Terminal) quiet() error            { return nil }
 func (t *Terminal) pollKey() (byte, bool)   { return 0, false }
 func (t *Terminal) restore()                {}
+func (t *Terminal) suspend()                {}
+
+var stopSignals []os.Signal
 
 func openConsole() (*os.File, *os.File, error) { return nil, nil, ErrNotTerminal }
 

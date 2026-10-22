@@ -15,6 +15,7 @@ import (
 	"github.com/ruskaruma/cuck-code/internal/runner"
 	"github.com/ruskaruma/cuck-code/internal/shellhook"
 	"github.com/ruskaruma/cuck-code/internal/sound"
+	"github.com/ruskaruma/cuck-code/internal/tty"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".
@@ -27,7 +28,7 @@ const usage = `cuck - launch a coding agent, from the chair.
 Usage:
   cuck [flags] [agent [agent args...]]
   cuck [flags] --agent <agent> [-- agent args...]
-  cuck setup [--yes] [--system]    make typing any agent's name play the intro
+  cuck setup [--yes] [--system | --user]  make typing any agent's name play the intro
   cuck uninstall                   undo setup
   cuck agents                      list the agents setup wraps
   cuck doctor                      check why typing an agent does or doesn't play the intro
@@ -86,11 +87,14 @@ func run(args []string) int {
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	// --hooked marks a launch from the shell hook, i.e. the user typed the agent's name directly.
 	hooked := fs.Bool("hooked", false, "")
+	// --intro-only plays the intro and exits without launching anything: the
+	// shell hook runs it in front of the user's own shell function for the agent.
+	introOnly := fs.Bool("intro-only", false, "")
 	fs.Usage = func() {
 		out := fs.Output()
 		fmt.Fprint(out, usage)
 		fs.VisitAll(func(f *flag.Flag) {
-			if f.Name != "hooked" {
+			if f.Name != "hooked" && f.Name != "intro-only" {
 				fmt.Fprintf(out, "  -%s\n    \t%s\n", f.Name, f.Usage)
 			}
 		})
@@ -138,8 +142,9 @@ func run(args []string) int {
 		fmt.Println(cmd.String())
 		return 0
 	}
-	// Fail before the show, not after it.
-	if err := cmd.Check(); err != nil {
+	// Fail before the show, not after it. A shell function launches the agent
+	// after --intro-only, so there's nothing on PATH to check then.
+	if err := cmd.Check(); err != nil && !*introOnly {
 		if *hooked {
 			fmt.Fprintf(os.Stderr, "%s: command not found\n", name) // what the shell would have said
 		} else {
@@ -164,10 +169,13 @@ func run(args []string) int {
 		case errors.Is(err, animation.ErrInterrupted):
 			return 130
 		case errors.Is(err, animation.ErrNotTerminal):
-			// Piped or redirected: nobody to watch, launch straight away.
+			// Output redirected: nobody to watch, launch straight away.
 		case err != nil:
 			fmt.Fprintln(os.Stderr, "cuck: animation:", err)
 		}
+	}
+	if *introOnly {
+		return 0
 	}
 
 	code, err := runner.Exec(cmd)
@@ -178,7 +186,9 @@ func run(args []string) int {
 }
 
 func shouldAnimate(noAnim bool, cfg config.Config) bool {
-	if noAnim || truthy(os.Getenv("CUCK_NO_ANIMATION")) || os.Getenv("TERM") == "dumb" {
+	// Piped input (echo prompt | agent) means a one-shot, non-interactive run,
+	// and leaves no keyboard to skip the show with.
+	if noAnim || truthy(os.Getenv("CUCK_NO_ANIMATION")) || os.Getenv("TERM") == "dumb" || !tty.IsTerminal(os.Stdin) {
 		return false
 	}
 	return cfg.Animation == nil || *cfg.Animation
@@ -224,7 +234,13 @@ func animationOptions(cfg config.Config, durationMS, fps int, colorFlag string) 
 		fps = cfg.FPS
 	}
 	if colorFlag == "" {
-		colorFlag = cfg.Color
+		// A bad value in the config only gets a warning, like a broken
+		// config file: it mustn't stop the agent from launching.
+		if _, _, err := animation.ParseColorMode(cfg.Color); err != nil {
+			fmt.Fprintln(os.Stderr, "cuck: ignoring config:", err)
+		} else {
+			colorFlag = cfg.Color
+		}
 	}
 	mode, auto, err := animation.ParseColorMode(colorFlag)
 	if err != nil {

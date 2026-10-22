@@ -1,5 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
+import { SPINNER_WORDS } from '../hooks/scene'
 
 const BAND = {
   plugin: 'cuck-code',
@@ -13,8 +14,9 @@ const TURN = { answer: 'done', durationMs: 32000, turnId: 't1' }
 const QUIET = { command: 'cuck-quiet', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as const
 
 // The engine beneath: it takes prompts and turns, runs commands, and draws
-// its own band. Every sound the mod plays is recorded.
-function engine(on: On): string[] {
+// its own band. Every sound the mod plays is recorded. The player on the
+// machine exits with exitCode; 127 is the shell saying there is none.
+function engine(on: On, exitCode = 0): string[] {
   const played: string[] = []
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.complete', () => ({ text: 'done' }))
@@ -22,7 +24,7 @@ function engine(on: On): string[] {
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('process.run', (_, e) => {
     played.push((e.argv.at(-1) ?? '').replace(/^.*\//, '').replace('.wav', ''))
-    return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    return { value: { exitCode, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('ui.render', ($, e) => {
     const { Text } = $.ui.resolve(e)
@@ -31,9 +33,21 @@ function engine(on: On): string[] {
   return played
 }
 
+// The engine's own player, which the mod falls back to. Every clip it is
+// asked to play is recorded.
+function engineAudio(on: On): string[] {
+  const assets: string[] = []
+  on('audio.play', (_, e) => {
+    assets.push(e.clip.asset ?? '')
+    return { value: undefined }
+  })
+  return assets
+}
+
 test('she walks in, they carry on while Claude works, she walks out, the band clears', async ($, on) => {
   const clock = mock.clock(on, { now: 1000 })
   const played = engine(on)
+  const fallback = engineAudio(on)
 
   await $.prompt.submit(PROMPT)
   const first = await $.ui.mount({ ...BAND, surface: 'terminal' })
@@ -63,6 +77,22 @@ test('she walks in, they carry on while Claude works, she walks out, the band cl
   expect(await after.find({ key: 'strip' })).toBeUndefined()
   expect((await after.find({ type: 'Text', text: /engine/ }))?.text).toBe('engine')
   await after.unmount()
+
+  // The player on the machine played everything, so the engine played nothing.
+  expect(fallback).toEqual([])
+})
+
+test('with no player on the machine, the ding falls back to the engine', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  const played = engine(on, 127)
+  const fallback = engineAudio(on)
+
+  await $.prompt.submit(PROMPT)
+  await $.turn.complete({ ...TURN, isAborted: false, reason: 'answer' })
+  // The ding is not awaited by the turn; one tick lets its fallback run.
+  await clock.advance(33)
+  expect(played.at(-1)).toBe('ding')
+  expect(fallback).toEqual(['sounds/ding.wav'])
 })
 
 test('narrow terminals and other surfaces get the caption alone', async ($, on) => {
@@ -122,7 +152,9 @@ test('the spinner and the closing line are rewritten', async ($, on) => {
     plugin: 'cuck-code', component: 'Spinner', requestId: 'main', surface: 'terminal',
     props: { word: 'Sauteing', message: null, suffix: '…', mode: 'thinking' },
   })
-  expect(await spinner.find({ type: 'Text', text: /chair|seat|work|listen|door|questions/ })).toBeDefined()
+  // The word is picked at random, so check it against the whole list rather
+  // than a pattern that can drift from it.
+  expect(SPINNER_WORDS).toContain((await spinner.find({ type: 'Text' }))?.text)
 
   const line = await $.ui.mount({
     plugin: 'cuck-code', component: 'TurnDuration', requestId: 'done', surface: 'terminal',

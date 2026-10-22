@@ -41,5 +41,7 @@ $env:Path = "$dir;$env:Path"
 Write-Host "Installed $(& (Join-Path $dir 'cuck.exe') --version) to $dir"
 
 if (-not $env:CUCK_SKIP_SETUP) {
-    & (Join-Path $dir 'cuck.exe') setup
+    # Empty stdin makes setup ask on the console itself and stop waiting after a
+    # minute if nobody answers, so an unattended install still finishes.
+    $null | & (Join-Path $dir 'cuck.exe') setup
 }

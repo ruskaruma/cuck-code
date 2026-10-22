@@ -1,13 +1,14 @@
 "use strict";
 
-// postinstall: swap the JS launcher for the native binary, then ask whether
+// postinstall: swap the JS launcher for the native binary (except on Windows
+// and under pnpm; see replacesLauncher in lib/resolve.js), then ask whether
 // to hook the user's shells ("Do you really want to get cucked?"). The
 // question is asked on the terminal directly, because npm hides script
 // output. Nothing here may ever fail the install.
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
-const { binaryPath } = require("./lib/resolve.js");
+const { binaryPath, replacesLauncher } = require("./lib/resolve.js");
 
 function main() {
   let bin;
@@ -18,7 +19,7 @@ function main() {
     return;
   }
 
-  if (process.platform !== "win32") {
+  if (replacesLauncher(process.env, process.platform)) {
     // Running the binary directly starts instantly and gives it the signals
     // and exit codes, with no Node process in between.
     const launcher = path.join(__dirname, "bin", "cuck");
