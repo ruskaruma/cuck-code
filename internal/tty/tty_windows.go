@@ -99,6 +99,10 @@ func (t *Terminal) pollKey() (byte, bool) {
 	}
 }
 
+var stopSignals []os.Signal // no Ctrl+Z job control
+
+func (t *Terminal) suspend() {}
+
 func (t *Terminal) restore() {
 	s := &t.state
 	if s.inIsConsole {

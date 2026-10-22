@@ -81,6 +81,12 @@ func Play(o Options) (err error) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer signal.Stop(sig)
+	// Ctrl+Z: put the terminal back before stopping, take it again after fg.
+	stop := make(chan os.Signal, 1)
+	if len(tty.StopSignals) > 0 { // Notify with no signals would mean all of them
+		signal.Notify(stop, tty.StopSignals...)
+		defer signal.Stop(stop)
+	}
 
 	var once sync.Once
 	restore := func() {
@@ -164,10 +170,19 @@ func Play(o Options) (err error) {
 		select {
 		case <-sig:
 			return ErrInterrupted
+		case <-stop:
+			_, _ = term.Out.WriteString(leaveScreen)
+			term.Suspend()
+			_, _ = term.Out.WriteString(enterScreen)
+			enc.Invalidate()
+			last = time.Now()
+			continue
 		case <-ticker.C:
 		}
 		now := time.Now()
-		dt := now.Sub(last).Seconds()
+		// Capped, so a stall (a slow terminal, a stopped job) doesn't jump
+		// the story ahead and fire every sound it skipped at once.
+		dt := min(now.Sub(last).Seconds(), 0.25)
 		last = now
 		if storyT < storyLen {
 			storyT += dt / scale

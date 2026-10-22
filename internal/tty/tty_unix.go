@@ -4,9 +4,12 @@ package tty
 
 import (
 	"os"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
+
+var stopSignals = []os.Signal{syscall.SIGTSTP}
 
 type platformState struct {
 	inFd      int
@@ -58,6 +61,12 @@ func (t *Terminal) pollKey() (byte, bool) {
 	if !t.state.quietened {
 		return 0, false
 	}
+	// Check first: if something (a shell, after Ctrl+Z and fg) put the
+	// terminal back in line mode, a plain read would wait for Enter.
+	fds := []unix.PollFd{{Fd: int32(t.state.inFd), Events: unix.POLLIN}}
+	if n, err := unix.Poll(fds, 0); err != nil || n <= 0 {
+		return 0, false
+	}
 	var buf [16]byte
 	n, err := unix.Read(t.state.inFd, buf[:])
 	if err != nil || n <= 0 {
@@ -70,15 +79,25 @@ func (t *Terminal) restore() {
 	if !t.state.quietened {
 		return
 	}
-	// Drain anything typed during the show while reads are still non-blocking.
-	var buf [256]byte
-	for i := 0; i < 64; i++ {
-		if n, err := unix.Read(t.state.inFd, buf[:]); err != nil || n <= 0 {
-			break
-		}
-	}
-	_ = unix.IoctlSetTermios(t.state.inFd, ioctlSetTermios, t.state.saved)
+	// Discard anything typed during the show along with setting the modes
+	// back; unlike reading it away, this can't wait for a whole line.
+	_ = unix.IoctlSetTermios(t.state.inFd, ioctlSetTermiosFlush, t.state.saved)
 	t.state.quietened = false
+}
+
+func (t *Terminal) suspend() {
+	quiet := t.state.quietened
+	if quiet {
+		_ = unix.IoctlSetTermios(t.state.inFd, ioctlSetTermios, t.state.saved)
+		t.state.quietened = false
+	}
+	// Stop as Ctrl+Z would have; this returns once the shell continues us
+	// (fg). SIGSTOP, because Go keeps handling SIGTSTP itself (dropping it)
+	// even after signal.Reset.
+	_ = syscall.Kill(syscall.Getpid(), syscall.SIGSTOP)
+	if quiet {
+		_ = t.quiet()
+	}
 }
 
 func openConsole() (*os.File, *os.File, error) {
