@@ -175,7 +175,7 @@ func crtOff(cv *Canvas, k float64) {
 
 // renderTiny is the fallback for terminals too small for the room: the same
 // story, told as stage directions.
-func renderTiny(cv *Canvas, t float64, agent string) {
+func renderTiny(cv *Canvas, t float64, agent string, sfw bool) {
 	if agent == "" {
 		agent = "your agent"
 	}
@@ -186,6 +186,8 @@ func renderTiny(cv *Canvas, t float64, agent string) {
 		line = ";)"
 	case t >= tLookBack:
 		line = "(" + agent + " looks back at you)"
+	case t >= tClimb && sfw:
+		line = `she: "ship it."`
 	case t >= tClimb:
 		line = `she: "take me to heaven."`
 	case t >= tDoorOpen:

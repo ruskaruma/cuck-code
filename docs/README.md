@@ -171,6 +171,10 @@ cuck --dry-run yolo               # print what would run
 | `cuck agents` | list wrapped agents and where the hook is installed |
 | `cuck doctor` | check why typing an agent does or doesn't play the intro, and how to fix it |
 | `cuck demo [agent]` | play the intro without launching anything |
+| `cuck record [-o file] [agent]` | save the intro to share: an MP4 with its sound (with ffmpeg installed) or a GIF; `-size 100x32` sets the terminal it plays in, `-sfw` the clean version |
+| `cuck sfw [on\|off]` | keep the intro safe for work (see [Sound](#sound)) |
+| `cuck meetings [on\|off]` | on (the default), the intro goes quiet and safe for work while you're on a call |
+| `cuck pack add\|list\|remove` | voice packs for the [Claude Code mod](#inside-claude-code) |
 | `cuck hook <shell>` | print the hook code for `bash`, `zsh`, `fish` or `powershell` |
 
 cuck checks that the agent exists **before** the intro, so a typo won't cost you the show. On macOS and Linux the agent replaces the cuck process (`exec`), so signals, job control and exit codes behave exactly as if you had run the agent yourself. On Windows, cuck waits for the agent and exits with its exit code.
@@ -184,6 +188,7 @@ cuck checks that the agent exists **before** the intro, so a typo won't cost you
 | `CUCK_AGENT` | default agent when none is given |
 | `CUCK_NO_ANIMATION=1` | never play the intro (the hook stays installed but launches instantly) |
 | `CUCK_SOUND=0` | play the intro silently |
+| `CUCK_SFW=1` | keep the intro safe for work |
 | `CUCK_SKIP_SETUP=1` | don't ask the question during `npm install` or the install scripts |
 | `CUCK_CONFIG` | config file path |
 | `NO_COLOR` | render the intro in plain ASCII |
@@ -212,7 +217,9 @@ The config file is optional and can contain any of the fields below.
   "sound": false,
   "sound_file": "~/Music/good-d.mp3",
   "hook_agents": ["my-internal-agent"],
-  "hook_exclude": ["cursor", "goose"]
+  "hook_exclude": ["cursor", "goose"],
+  "sfw": false,
+  "meetings": true
 }
 ```
 
@@ -226,6 +233,8 @@ The config file is optional and can contain any of the fields below.
 | `sound_file` | your own clip (wav, mp3, ...) to play instead of the built-in voice line |
 | `hook_agents` | extra commands for the shell hook to wrap |
 | `hook_exclude` | built-in agents the hook should leave alone |
+| `sfw` | `true` keeps the intro safe for work (`cuck sfw` sets it) |
+| `meetings` | `false` plays the intro as usual on calls (`cuck meetings` sets it) |
 
 When no agent is given, cuck picks one in this order: `--agent`, then a positional agent, then `$CUCK_AGENT`, then `agent` in the config file, then `claude`.
 
@@ -242,7 +251,13 @@ Sound is on by default. Turn it off with `--no-sound`, `"sound": false` in the c
 | the wink | ding, then the voice: *"who got the good d? who got the good d?"* |
 | the flash | bass boom |
 
+Some agents say a line of their own as they wink: Codex *"who got the good diff?"*, Cursor *"who got the good tab?"*, Gemini *"who got the good d? ...twice."*, Copilot *"who got the good autocomplete?"*, Aider *"who got the good commit?"* and Goose *"honk honk! who got the good d?"*.
+
+**Safe for work** (`cuck sfw on`, `"sfw": true` or `CUCK_SFW=1`) keeps the same story with cleaner lines: she says "ship it.", there's no bed or kiss sound, and he asks *"who got the good code?"*. **On a call**, unless you've run `cuck meetings off`, the intro is silent and safe for work by itself: while your microphone is in use on Linux (PulseAudio or PipeWire) and Windows, or during a Zoom or FaceTime call on macOS.
+
 The clips are built into the binary; there are no audio dependencies. cuck plays them with whatever the OS already has: `afplay` on macOS, `pw-play`, `paplay`, `aplay` or `ffplay` on Linux, and PowerShell on Windows. If none is available, or there's no audio device (SSH, CI), it stays silent. The voice line keeps playing while your agent starts up.
+
+The voice lines were made with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0) and the effects are synthesised; `make sounds` regenerates them all.
 
 To use your own clip for the voice line, point `"sound_file"` at it. WAV works everywhere; MP3 and other formats need `afplay` (macOS), `ffplay` or `mpv` (Linux), or PowerShell (Windows).
 
@@ -333,14 +348,15 @@ The scene isn't made of pre-drawn frames. cuck casts one ray per character cell 
 - **Terminal handling.** The intro runs on the alternate screen with the cursor hidden and keyboard echo off. Keys typed during the show never leak into the agent. The terminal is restored on normal exit, Ctrl+C, SIGTERM, SIGHUP and panics.
 
 ```text
-cmd/cuck/            CLI, setup/uninstall/hook/agents commands
+cmd/cuck/            CLI, setup/uninstall/hook/agents/record/pack commands
 cmd/preview/         renders frames/GIFs without a terminal (make demo)
 internal/animation/  scene, cast, timeline, transition, encoder
+internal/record/     the intro as a GIF or an MP4 with its soundtrack (cuck record)
 internal/shellhook/  agent list, shell wrappers, startup-file editing
 internal/tty/        terminal modes, size, key polling, Windows VT mode
 internal/runner/     command parsing and exec
 internal/config/     config file
-internal/sound/      sound cues, embedded clips, per-OS players (gen/ synthesises the effects)
+internal/sound/      sound cues, embedded clips, per-OS players, the call check (gen/ synthesises the effects, voices.py the voice lines)
 docs/assets/         logo, demo GIF, screenshots
 packaging/npm/       npm package (launcher + all six binaries)
 packaging/claude-code/  the Claude Code mod (this repository is its marketplace)

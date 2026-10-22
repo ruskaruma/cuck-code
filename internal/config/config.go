@@ -14,7 +14,9 @@
 //	  "sound": false,
 //	  "sound_file": "~/Music/good-d.mp3",
 //	  "hook_agents": ["my-agent"],
-//	  "hook_exclude": ["cursor"]
+//	  "hook_exclude": ["cursor"],
+//	  "sfw": false,
+//	  "meetings": true
 //	}
 package config
 
@@ -52,6 +54,11 @@ type Config struct {
 	// ClaudeMod is false once the user has turned down the Claude Code mod,
 	// so upgrades stop offering it.
 	ClaudeMod *bool `json:"claude_mod"`
+	// SFW keeps the intro safe for work: the same story, cleaner lines and sounds.
+	SFW *bool `json:"sfw"`
+	// Meetings can be set to false to play the intro as usual on a call; by
+	// default it goes quiet and safe for work while you're on one.
+	Meetings *bool `json:"meetings"`
 }
 
 // Path returns the config file location.

@@ -24,6 +24,10 @@ var subcommands = map[string]func(args []string, cfg config.Config) int{
 	"agents":    cmdAgents,
 	"doctor":    cmdDoctor,
 	"demo":      cmdDemo,
+	"record":    cmdRecord,
+	"sfw":       cmdSFW,
+	"meetings":  cmdMeetings,
+	"pack":      cmdPack,
 }
 
 func hookAgents(cfg config.Config) []string {

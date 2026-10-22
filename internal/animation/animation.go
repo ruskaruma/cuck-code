@@ -42,6 +42,7 @@ type Options struct {
 	Agent     string        // the agent's name: he wears it on his name tag
 	Tagline   string        // shown under the logo during the transition, e.g. "-> claude"
 	Sound     *sound.Player // nil or disabled: silent
+	SFW       bool          // safe for work: the same story, cleaner lines
 }
 
 const (
@@ -136,9 +137,12 @@ func Play(o Options) (err error) {
 
 		if storyT < storyLen {
 			if w < minW || h < minH {
-				renderTiny(cv, storyT, o.Agent)
+				renderTiny(cv, storyT, o.Agent, o.SFW)
 			} else {
 				st := StateAt(storyT, o.Agent)
+				if o.SFW {
+					st.Clean()
+				}
 				Render(cv, &st)
 			}
 		} else {
@@ -146,9 +150,12 @@ func Play(o Options) (err error) {
 				// Freeze the wink frame as the source for the glitch.
 				final = NewCanvas(w, h)
 				if w < minW || h < minH {
-					renderTiny(final, tWink, o.Agent)
+					renderTiny(final, tWink, o.Agent, o.SFW)
 				} else {
 					st := StateAt(storyLen, o.Agent)
+					if o.SFW {
+						st.Clean()
+					}
 					Render(final, &st)
 				}
 			}

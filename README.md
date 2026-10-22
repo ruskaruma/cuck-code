@@ -46,6 +46,7 @@ claude                          # after setup: the intro plays, then Claude Code
 cuck codex --full-auto          # or launch any agent through cuck directly
 cuck setup                      # get cucked later / cuck uninstall to undo it
 command claude                  # skip the intro once
+cuck record                     # save the intro as an MP4 (or a GIF) to post
 ```
 
 Any key skips ahead during the intro, and Ctrl+C cancels. Config, every flag, the full list of supported agents and troubleshooting are in the [docs](docs/README.md).

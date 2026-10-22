@@ -270,7 +270,7 @@ func cmdDemo(args []string, cfg config.Config) int {
 		return 2
 	}
 	opts.Agent, opts.Tagline = agent, "-> "+agent
-	opts.Sound = sound.New(wantSound(cfg, false, false), expandHome(cfg.SoundFile))
+	opts.Sound, opts.SFW = introSound(cfg, wantSound(cfg, false, false), agent)
 	switch err := animation.Play(opts); {
 	case errors.Is(err, animation.ErrInterrupted):
 		return 130

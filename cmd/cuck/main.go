@@ -32,6 +32,10 @@ Usage:
   cuck agents                      list the agents setup wraps
   cuck doctor                      check why typing an agent does or doesn't play the intro
   cuck demo [agent]                play the intro without launching anything
+  cuck record [-o file] [agent]    save the intro as a GIF, or an MP4 with sound, to share
+  cuck sfw [on|off]                keep the intro safe for work
+  cuck meetings [on|off]           go quiet and safe for work on calls (on by default)
+  cuck pack add|list|remove        voice packs for the Claude Code mod
   cuck hook <bash|zsh|fish|powershell>  print the shell hook (used by setup)
 
 Examples:
@@ -52,6 +56,7 @@ Environment:
   CUCK_AGENT          default agent when none is given
   CUCK_NO_ANIMATION   set to 1 to always skip the intro
   CUCK_SOUND          set to 0 to play the intro silently
+  CUCK_SFW            set to 1 to keep the intro safe for work
   CUCK_CONFIG         config file path (default %s)
   NO_COLOR            render the intro without colour
 `
@@ -154,7 +159,7 @@ func run(args []string) int {
 			fmt.Fprintln(os.Stderr, "cuck:", err)
 			return 2
 		}
-		opts.Sound = sound.New(wantSound(cfg, *soundOn, *soundOff), expandHome(cfg.SoundFile))
+		opts.Sound, opts.SFW = introSound(cfg, wantSound(cfg, *soundOn, *soundOff), cmd.Name())
 		opts.Agent = cmd.Name()
 		opts.Tagline = "-> " + cmd.Name()
 		switch err := animation.Play(opts); {
@@ -205,6 +210,18 @@ func wantSound(cfg config.Config, on, off bool) bool {
 		return truthy(v)
 	}
 	return cfg.Sound == nil || *cfg.Sound
+}
+
+// introSound is the intro's sound for agent, and whether it's safe for
+// work: by choice, or because you're on a call, which also keeps it quiet.
+func introSound(cfg config.Config, enabled bool, agent string) (*sound.Player, bool) {
+	sfw := (cfg.SFW != nil && *cfg.SFW) || truthy(os.Getenv("CUCK_SFW"))
+	if (cfg.Meetings == nil || *cfg.Meetings) && sound.OnCall() {
+		enabled, sfw = false, true
+	}
+	p := sound.New(enabled, expandHome(cfg.SoundFile))
+	p.Agent, p.SFW = agent, sfw
+	return p, sfw
 }
 
 func expandHome(p string) string {

@@ -22,14 +22,44 @@ const (
 	Bed    = "bed"
 	Smooch = "smooch"
 	Ding   = "ding"
-	Voice  = "voice" // "who got the good d? who got the good d?"
+	Voice  = "voice" // "who got the good d? who got the good d?", or the agent's own line
 	Boom   = "boom"
 )
+
+// voices are the agents with a wink line of their own; the rest say the usual.
+var voices = map[string]string{
+	"codex":        "voice_codex",  // who got the good diff?
+	"gemini":       "voice_gemini", // who got the good d? twice.
+	"cursor":       "voice_cursor", // who got the good tab?
+	"cursor-agent": "voice_cursor",
+	"copilot":      "voice_copilot", // who got the good autocomplete?
+	"aider":        "voice_aider",   // who got the good commit?
+	"goose":        "voice_goose",   // honk honk. who got the good d?
+}
+
+// VoiceClip is the clip agent says as he winks: his own line, or "who got
+// the good code?" when it's safe for work.
+func VoiceClip(agent string, sfw bool) string {
+	if sfw {
+		return "voice_sfw"
+	}
+	if v, ok := voices[agent]; ok {
+		return v
+	}
+	return Voice
+}
+
+// Clip returns a clip's WAV bytes.
+func Clip(name string) ([]byte, error) { return clips.ReadFile("clips/" + name + ".wav") }
 
 // Player plays cues in the background. The zero value is silent.
 type Player struct {
 	// VoiceFile, if set, is played instead of the built-in voice line.
 	VoiceFile string
+	// Agent is who's winking: some agents have a line of their own.
+	Agent string
+	// SFW keeps it safe for work: no bed or kiss, and a clean wink line.
+	SFW bool
 
 	enabled bool
 	dir     string
@@ -44,14 +74,17 @@ func New(enabled bool, voiceFile string) *Player {
 // Play starts a cue and returns immediately. Clips keep playing after cuck
 // hands the terminal over to the agent.
 func (p *Player) Play(cue string) {
-	if p == nil || !p.enabled {
+	if p == nil || !p.enabled || (p.SFW && (cue == Bed || cue == Smooch)) {
 		return
 	}
-	if cue == Voice && p.VoiceFile != "" {
-		if _, err := os.Stat(p.VoiceFile); err == nil {
-			start(p.VoiceFile)
-			return
+	if cue == Voice {
+		if p.VoiceFile != "" && !p.SFW {
+			if _, err := os.Stat(p.VoiceFile); err == nil {
+				start(p.VoiceFile)
+				return
+			}
 		}
+		cue = VoiceClip(p.Agent, p.SFW)
 	}
 	if path := p.extract(cue); path != "" {
 		start(path)
@@ -69,7 +102,7 @@ func (p *Player) extract(cue string) string {
 		p.dir = filepath.Join(base, "cuck-code", "sounds")
 		_ = os.MkdirAll(p.dir, 0o755)
 	})
-	data, err := clips.ReadFile("clips/" + cue + ".wav")
+	data, err := Clip(cue)
 	if err != nil {
 		return ""
 	}

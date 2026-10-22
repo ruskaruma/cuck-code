@@ -19,7 +19,7 @@ func TestRenderAllSizes(t *testing.T) {
 		for ts := 0.0; ts <= fxLength; ts += 0.02 {
 			RenderFX(out, cv, ts, int(ts*100), "-> claude")
 		}
-		renderTiny(cv, 3, "codex")
+		renderTiny(cv, 3, "codex", false)
 	}
 }
 
@@ -174,5 +174,20 @@ func TestSoundCues(t *testing.T) {
 	}
 	if !voice {
 		t.Error("the voice line should come with the wink")
+	}
+}
+
+func TestSafeForWorkLines(t *testing.T) {
+	st := StateAt(tClimb+0.3, "claude")
+	if st.HerLine != "take me to heaven." || st.SFX == "" {
+		t.Fatalf("expected her line and the creak at the climb, got %q, %q", st.HerLine, st.SFX)
+	}
+	st.Clean()
+	if st.HerLine != "ship it." || st.SFX != "" {
+		t.Errorf("Clean left %q, %q", st.HerLine, st.SFX)
+	}
+	cues := SoundCues()
+	if last := cues[len(cues)-1]; last.T != storyLen {
+		t.Errorf("the boom should close the story, got %+v", last)
 	}
 }

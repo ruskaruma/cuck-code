@@ -46,6 +46,30 @@ var soundCues = []struct {
 	{tWink + 0.05, sound.Voice}, // "who got the good d? who got the good d?"
 }
 
+// Cue is a sound effect at a moment in the story, in seconds at natural pace.
+type Cue struct {
+	T    float64
+	Name string
+}
+
+// SoundCues are the intro's sound effects at natural pace, with the boom as
+// the story ends and the transition begins.
+func SoundCues() []Cue {
+	cues := make([]Cue, 0, len(soundCues)+1)
+	for _, c := range soundCues {
+		cues = append(cues, Cue{c.t, c.cue})
+	}
+	return append(cues, Cue{storyLen, sound.Boom})
+}
+
+// Clean keeps the scene safe for work: the same story, cleaner lines.
+func (st *State) Clean() {
+	if st.HerLine == "take me to heaven." {
+		st.HerLine = "ship it."
+	}
+	st.SFX = ""
+}
+
 type waypoint struct{ t, x, z float64 }
 
 var entrance = []waypoint{{tEnter, -1.30, 6.45}, {tThrough, -1.22, 5.55}, {tAtBed, 0.0, 3.92}}
